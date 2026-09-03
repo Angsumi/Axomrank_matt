@@ -13,3 +13,5 @@ services:
         value: "--experimental-sqlite"
       - key: ALLOW_REMOTE_HOST
         value: "1"
+      - key: CONTROL_CENTER_DATA_DIR
+        value: "/tmp/control-center-data"

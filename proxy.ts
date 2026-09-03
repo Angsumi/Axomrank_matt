@@ -12,9 +12,22 @@ function isLoopback(value: string) {
 
 function isSameOrigin(value: string, request: NextRequest) {
   try {
+    const originUrl = new URL(value);
     const requestUrl = new URL(request.url);
-    requestUrl.host = request.headers.get("host") || requestUrl.host;
-    return new URL(value).origin === requestUrl.origin;
+    const hostHeader = request.headers.get("host");
+    if (hostHeader) {
+      requestUrl.host = hostHeader;
+    }
+    if (originUrl.origin === requestUrl.origin) return true;
+
+    // In reverse-proxy setups (e.g. Render with HTTPS termination):
+    const protoHeader = request.headers.get("x-forwarded-proto");
+    if (protoHeader && hostHeader) {
+      const reconstructed = `${protoHeader}://${hostHeader}`;
+      if (originUrl.origin === reconstructed) return true;
+    }
+
+    return false;
   } catch {
     return false;
   }
