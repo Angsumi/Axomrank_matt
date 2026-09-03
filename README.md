@@ -1,31 +1,51 @@
-# Control Center
+# AxomRank — Assam Job & Recruitment Radar
 
-A local-first business dashboard for industry updates, strict brand mentions, newsletter monitoring, public audience totals, reminders, and tasks.
+A local-first, privacy-respecting intelligence dashboard tailored for **Assam government jobs, competitive exams (APSC, ADRE, SLPRB, TET, Banking), vacancy fit scoring, and application funnel tracking**.
 
-Every fresh install starts empty. There are no built-in names, companies, websites, social profiles, API keys, or demo records. Each user tailors the dashboard to their own niche in **Settings**.
+---
 
-## Install and open
+## 🚀 Free Cloud Hosting (Render.com)
 
-Requirements: [Node.js 24.19 or newer](https://nodejs.org/en/download), npm, and a modern desktop browser.
+You can host AxomRank completely free on [Render.com](https://render.com) with 1-click:
+
+1. Fork or push this repository to GitHub: `https://github.com/Angsumi/Axomrank_matt`
+2. Go to [dashboard.render.com](https://dashboard.render.com) and click **New + → Blueprint**.
+3. Select this repository. Render will automatically read [`render.yaml`](render.yaml) with the correct configuration:
+   * **Node Version**: `22.14.0` (with native `node:sqlite` enabled)
+   * **Build Command**: `npm install && npm run build`
+   * **Start Command**: `npm run start`
+   * **Environment Variables**:
+     * `NODE_VERSION=22.14.0`
+     * `NODE_OPTIONS=--experimental-sqlite`
+     * `ALLOW_REMOTE_HOST=1`
+     * `CONTROL_CENTER_DATA_DIR=/tmp/control-center-data`
+4. Click **Apply**. Your app will be live with free SSL at `https://<your-service>.onrender.com`.
+
+---
+
+## ✨ Features
+
+- **Assam Recruitment Feeds**: Preconfigured with official RSS and notification sources (APSC, SLPRB Assam Police, Gauhati High Court, DEE/TET, Assam Tribune, JobAssam, AssamCareer, and more).
+- **Incident & Noise Hard-Filtering**: Intelligent heuristic filtering that suppresses tragedy and crime incidents (e.g. suicides, murders, road accidents) while strictly retaining genuine vacancy recruitments, exam notices, and admit cards.
+- **Candidate Profile & Deal-Breaker Gates**: Configure your education level (Graduate, 10th, 12th, B.Tech, ITI, TET, Nursing, LLB), social reservation quota (UR, OBC/MOBC, SC, ST, EWS), home district (all 34 Assam districts), and Employment Exchange registration. Deal-breaker requirements (e.g. nursing licenses or bar admissions) are automatically detected and flagged.
+- **0–100% Fit Scoring & Badges**: Every vacancy displays a real-time fit score (🟢 High Match 80%+, 🟡 Good Fit 60%+, ⚠️ Qualification Gap) based on your personalized profile.
+- **Government Application Funnel**: Replaced static bookmarks with a full application tracker:
+  `📌 Saved ➔ 📝 Applied ➔ 🎫 Admit Card Ready ➔ ✍️ Exam Attended ➔ 🏆 Result / Selected`
+  Store Application Numbers, Roll Numbers, and Exam Dates with full SQLite persistence.
+
+---
+
+## Local Installation and Run
+
+Requirements: [Node.js 22.14 or newer](https://nodejs.org/en/download), npm, and a modern browser.
 
 ```bash
-git clone https://github.com/mreflow/control-center.git
-cd control-center
+git clone https://github.com/Angsumi/Axomrank_matt.git
+cd Axomrank_matt
 npm run launch
 ```
 
-`npm run launch` is the golden path. It installs the locked dependencies when needed, builds the app when source files change, starts one loopback-only server, waits for a health check, and opens `http://127.0.0.1:3000` in the default browser. Keep that terminal window open; press `Ctrl+C` to stop.
-
-Prefer a ZIP? Download **Code → Download ZIP** on GitHub, extract it, open a terminal in the extracted folder, and run `npm run launch`. Git is only required for the clone/update workflow.
-
-Useful commands:
-
-```bash
-npm run doctor                 # verify runtime, settings, build, and SQLite health
-npm run backup                 # make a consistent private backup
-npm run launch -- --no-open    # start without opening a browser
-npm run launch -- --port=3001  # use another local port
-```
+`npm run launch` installs dependencies, builds the app, boots the local server, and automatically opens `http://127.0.0.1:3000`.
 
 ## First-run setup
 
