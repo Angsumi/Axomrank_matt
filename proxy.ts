@@ -22,7 +22,8 @@ function isSameOrigin(value: string, request: NextRequest) {
 
 export function proxy(request: NextRequest) {
   const host = request.headers.get("host") || "";
-  if (!isLoopback(`http://${host}`)) {
+  const allowRemote = process.env.ALLOW_REMOTE_HOST === "1" || Boolean(process.env.RENDER) || Boolean(process.env.PORT);
+  if (!allowRemote && !isLoopback(`http://${host}`)) {
     return NextResponse.json(
       { error: "Control Center only accepts requests from this computer." },
       { status: 403 },

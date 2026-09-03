@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: axomrank
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: ALLOW_REMOTE_HOST
+        value: "1"

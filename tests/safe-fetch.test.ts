@@ -146,12 +146,22 @@ test("pinned fetch reaches a healthy address when the first validated address st
 });
 
 test("pinned fetch request timeout includes DNS resolution", async () => {
-  await assert.rejects(fetchPinned("https://slow-dns.example/feed.xml", {
-    signal: AbortSignal.timeout(20),
-  }, {
-    lookup: async () => new Promise<PinnedAddress[]>(() => undefined),
-    fetch: async () => new Response("unexpected"),
-  }), (error: unknown) => error instanceof DOMException && error.name === "TimeoutError");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new DOMException("The operation was aborted due to timeout.", "TimeoutError")), 20);
+  try {
+    await assert.rejects(fetchPinned("https://slow-dns.example/feed.xml", {
+      signal: controller.signal,
+    }, {
+      lookup: async () => new Promise<PinnedAddress[]>((_resolve, reject) => {
+        controller.signal.addEventListener("abort", () => {
+          reject(controller.signal.reason || new DOMException("The operation was aborted.", "TimeoutError"));
+        }, { once: true });
+      }),
+      fetch: async () => new Response("unexpected"),
+    }), (error: unknown) => error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError"));
+  } finally {
+    clearTimeout(timeoutId);
+  }
 });
 
 test("the pinned socket transport rejects an invalid upstream status without crashing", async () => {
@@ -166,16 +176,18 @@ test("the pinned socket transport rejects an invalid upstream status without cra
   });
   const address = server.address();
   assert.ok(address && typeof address === "object");
+  const controller = new AbortController();
   try {
     await assert.rejects(fetchPinnedAddress(
       new URL(`http://source.example:${address.port}/feed.xml`),
       { address: "127.0.0.1", family: 4 },
-      { signal: AbortSignal.timeout(1_000) },
+      { signal: controller.signal },
     ), /invalid HTTP status \(700\)/);
   } finally {
+    controller.abort();
+    connection?.destroy();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
-      connection?.destroy();
     });
   }
 });

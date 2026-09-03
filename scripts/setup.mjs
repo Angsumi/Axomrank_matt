@@ -6,12 +6,12 @@ import { spawnSync } from "node:child_process";
 import { npmCommand, resolveDataDirectory } from "./paths.mjs";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
-if (major < 24 || (major === 24 && minor < 19)) {
+if (major < 22 || (major === 22 && minor < 12)) {
   console.error(
-    `Control Center needs Node.js 24.19 or newer. You have ${process.versions.node}.`,
+    `AxomRank needs Node.js 22.12 or newer. You have ${process.versions.node}.`,
   );
   console.error(
-    "Install the current Node.js LTS release, then run npm run setup again.",
+    "Install Node.js 22.12 or newer, then run npm run setup again.",
   );
   process.exit(1);
 }

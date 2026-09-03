@@ -57,6 +57,7 @@ import type {
   NewsletterFeedResponse,
   PublicSettings,
   ReminderItem,
+  ApplicationStage,
   SettingsUpdate,
   TaskItem,
   WorkspaceState,
@@ -79,6 +80,12 @@ import type { AudienceHistorySeries } from "@/lib/audience-charts";
 import { AI_PROVIDER_LABELS, DEFAULT_LOCAL_AI_URLS, isAiReady } from "@/lib/ai-providers";
 import { sortFeedStories, selectNewsletterTopics, newsletterSourceOptions } from "@/lib/feed-priority";
 import { sortIndustryItems, type IndustrySortOrder } from "@/lib/industry";
+import {
+  ASSAM_DISTRICTS,
+  type CandidateProfile,
+  DEFAULT_CANDIDATE_PROFILE,
+  extractJobMetadata,
+} from "@/lib/assam-job-classifier";
 import { completeTaskItems } from "@/lib/tasks";
 import {
   applyArchiveToPayload,
@@ -96,6 +103,7 @@ type Tab =
   | "settings";
 type SettingsSection =
   | "general"
+  | "candidateProfile"
   | "industry"
   | "mentions"
   | "newsletters"
@@ -107,13 +115,14 @@ type Reminder = ReminderItem;
 type Task = TaskItem;
 
 const emptySettings: PublicSettings = {
-  general: { workspaceName: "Control Center" },
+  general: { workspaceName: "AxomRank — Assam Job Radar" },
+  candidateProfile: { ...DEFAULT_CANDIDATE_PROFILE },
   industry: {
     sources: [],
     keywords: [],
     description: "",
     excludedTerms: [],
-    dailyLimit: 30,
+    dailyLimit: 50,
   },
   mentions: {
     terms: [],
@@ -142,13 +151,13 @@ const emptySettings: PublicSettings = {
 };
 
 const nav: { id: Tab; label: string; icon: typeof Activity }[] = [
-  { id: "today", label: "Today", icon: LayoutDashboard },
-  { id: "industry", label: "Industry", icon: Radio },
-  { id: "mentions", label: "Mentions", icon: AtSign },
-  { id: "reminders", label: "Reminders", icon: Bookmark },
+  { id: "today", label: "Daily Radar", icon: LayoutDashboard },
+  { id: "industry", label: "Job Feeds", icon: Radio },
+  { id: "mentions", label: "Exam Radar", icon: AtSign },
+  { id: "reminders", label: "Deadlines", icon: Bookmark },
+  { id: "tasks", label: "Applications", icon: ListTodo },
+  { id: "newsletters", label: "Digests", icon: Newspaper },
   { id: "audience", label: "Audience", icon: Users },
-  { id: "newsletters", label: "Newsletters", icon: Newspaper },
-  { id: "tasks", label: "Tasks", icon: ListTodo },
 ];
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -168,9 +177,11 @@ function Panel({
 function Label({
   children,
   tone,
+  title,
 }: {
   children: React.ReactNode;
   tone?: string;
+  title?: string;
 }) {
   return (
     <span
@@ -178,6 +189,7 @@ function Label({
         "label",
         tone && `label-${tone.toLowerCase().replaceAll(" ", "-")}`,
       )}
+      title={title}
     >
       {children}
     </span>
@@ -675,8 +687,8 @@ function TodayView({
     <div className="view">
       <PageHeading
         eyebrow={today}
-        title="Good morning."
-        description="A quiet starting point for the sources, signals, and work you choose to track."
+        title="Assam Recruitment Radar"
+        description="Real-time vacancies, government notices, admit cards, and application deadlines across Assam."
         action={
           <button
             className="button button-ghost"
@@ -871,6 +883,9 @@ function IndustryView({
   );
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"active" | "history" | "archive">("active");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedQualification, setSelectedQualification] = useState<string>("all");
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<IndustrySortOrder>("important");
   const archive = useArchiveAction<LiveFeedResponse>("industry", mutate);
   const sourceItems =
@@ -879,33 +894,101 @@ function IndustryView({
       : view === "history"
         ? data?.historyItems || []
         : data?.items || [];
-  const items = sortIndustryItems(
-    sourceItems.filter((item) =>
-      `${item.title} ${item.summary} ${item.source}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-    ),
-    sortOrder,
-  );
+
+  const filteredItems = sourceItems.filter((item) => {
+    const meta = item.jobMetadata || extractJobMetadata(item.title, item.summary);
+    if (meta.isRecruitment === false) return false;
+
+    const matchesQuery = `${item.title} ${item.summary} ${item.source}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
+    if (!matchesQuery) return false;
+
+    if (selectedCategory !== "all") {
+      if (selectedCategory === "best-fit") {
+        if (!meta.fitResult || meta.fitResult.score < 80) return false;
+      } else if (selectedCategory === "urgent" && !meta.isUrgent) return false;
+      else if (selectedCategory === "admit-card" && meta.stage !== "admit-card") return false;
+      else if (selectedCategory === "result" && meta.stage !== "result" && meta.stage !== "answer-key") return false;
+      else if (selectedCategory !== "urgent" && selectedCategory !== "admit-card" && selectedCategory !== "result" && meta.category !== selectedCategory) return false;
+    }
+
+    if (selectedQualification !== "all") {
+      if (!meta.qualificationTags.some((tag: string) => tag.toLowerCase().includes(selectedQualification.toLowerCase()))) {
+        return false;
+      }
+    }
+
+    if (selectedDistrict !== "all") {
+      if (!meta.district || meta.district.toLowerCase() !== selectedDistrict.toLowerCase()) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const items = sortIndustryItems(filteredItems, sortOrder);
+
+  const jobCategories = [
+    { id: "all", label: "All Updates" },
+    { id: "best-fit", label: "🎯 Best Fit (80%+)" },
+    { id: "state-govt", label: "State Govt (APSC/ADRE)" },
+    { id: "police-defense", label: "Police & Defense" },
+    { id: "central-govt", label: "Central Govt / NE" },
+    { id: "banking-psu", label: "PSU & Banking" },
+    { id: "education-tet", label: "Education & TET" },
+    { id: "health-medical", label: "Health (DHS/DME)" },
+    { id: "judiciary", label: "Judiciary" },
+    { id: "admit-card", label: "Admit Cards" },
+    { id: "result", label: "Results & Keys" },
+    { id: "urgent", label: "Closing Soon ⏰" },
+  ];
+
+  const qualificationFilters = [
+    { id: "all", label: "🎓 All Degrees" },
+    { id: "10th", label: "10th / HSLC" },
+    { id: "12th", label: "12th / HSSLC" },
+    { id: "graduate", label: "Graduate" },
+    { id: "post graduate", label: "Post Graduate" },
+    { id: "diploma", label: "Diploma" },
+    { id: "iti", label: "ITI" },
+    { id: "b.tech", label: "B.Tech / BE" },
+    { id: "tet", label: "B.Ed / TET" },
+    { id: "medical", label: "Medical / Nursing" },
+  ];
+
+  const districtFilters = [
+    { id: "all", label: "📍 All Locations" },
+    { id: "Guwahati", label: "Guwahati / Kamrup" },
+    { id: "Dibrugarh", label: "Dibrugarh" },
+    { id: "Silchar", label: "Silchar / Barak" },
+    { id: "Jorhat", label: "Jorhat" },
+    { id: "Nagaon", label: "Nagaon" },
+    { id: "Tezpur", label: "Tezpur" },
+    { id: "Tinsukia", label: "Tinsukia" },
+    { id: "Bongaigaon", label: "Bongaigaon" },
+  ];
+
   const kindLabel = (item: LiveStory) =>
     item.kind === "sitemap"
-      ? "New sitemap page"
+      ? "Sitemap update"
       : item.kind === "topic"
-        ? "Topic discovery"
-        : "Live feed";
+        ? "News discovery"
+        : "Portal feed";
   return (
     <div className="view">
       <PageHeading
-        eyebrow="Live source desk"
-        title="Industry"
-        description="A bounded briefing of the most useful watched-site and topic updates from the last 24 hours."
+        eyebrow="Assam Recruitment Desk"
+        title="Job Feeds"
+        description="Live recruitment notifications, admit cards, exam schedules, and results from JobAssam, AssamCareer, APSC, and Govt departments."
         action={
           <button
             className="button button-primary"
             onClick={refresh}
             disabled={loading}
           >
-            <RefreshCw size={15} /> Refresh sources
+            <RefreshCw size={15} /> Refresh jobs
           </button>
         }
       />
@@ -916,8 +999,8 @@ function IndustryView({
       ) : !data?.configured ? (
         <SetupEmpty
           icon={<Globe2 />}
-          title="Choose what this page watches"
-          description="Add public sites for feed or sitemap tracking, and topics for wider industry-news discovery."
+          title="Configure Assam Job Sources"
+          description="Add JobAssam, AssamCareer, APSC, or custom recruitment portals and topic keywords."
           onSetup={openSettings}
         />
       ) : (
@@ -928,47 +1011,86 @@ function IndustryView({
                 className={view === "active" ? "active" : ""}
                 onClick={() => setView("active")}
               >
-                Important now {data.items.length}
+                Active Vacancies {data.items.length}
               </button>
               <button
                 className={view === "history" ? "active" : ""}
                 onClick={() => setView("history")}
               >
-                History {data.historyCount || 0}
+                Past 24h+ {data.historyCount || 0}
               </button>
               <button
                 className={view === "archive" ? "active" : ""}
                 onClick={() => setView("archive")}
               >
-                Archived {data.archiveCount || 0}
+                Saved / Archived {data.archiveCount || 0}
               </button>
             </div>
             <div className="toolbar-actions">
               <label className="sort-control">
                 <span>Sort</span>
                 <select
-                  aria-label="Sort industry updates"
+                  aria-label="Sort job updates"
                   value={sortOrder}
                   onChange={(event) =>
                     setSortOrder(event.target.value as IndustrySortOrder)
                   }
                 >
-                  <option value="important">Most important</option>
+                  <option value="important">Highest priority</option>
                   <option value="newest">Newest first</option>
                   <option value="oldest">Oldest first</option>
-                  <option value="watched">Watched sites first</option>
+                  <option value="watched">Watched portals first</option>
                 </select>
               </label>
               <label className="search-box">
                 <Search size={15} />
                 <input
-                  aria-label="Search industry updates"
-                  placeholder="Search updates"
+                  aria-label="Search job updates"
+                  placeholder="Search posts, APSC, ADRE, syllabus..."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
             </div>
+          </div>
+          <div className="filter-row reveal delay-1" style={{ flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+            {jobCategories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className={selectedCategory === cat.id ? "active" : ""}
+                onClick={() => setSelectedCategory(cat.id)}
+                style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          <div className="filter-row reveal delay-1" style={{ flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+            {qualificationFilters.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                className={selectedQualification === q.id ? "active" : ""}
+                onClick={() => setSelectedQualification(q.id)}
+                style={{ fontSize: "11px", padding: "3px 9px", borderRadius: "14px", opacity: selectedQualification === q.id ? 1 : 0.8 }}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+          <div className="filter-row reveal delay-1" style={{ flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+            {districtFilters.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                className={selectedDistrict === d.id ? "active" : ""}
+                onClick={() => setSelectedDistrict(d.id)}
+                style={{ fontSize: "11px", padding: "3px 9px", borderRadius: "14px", opacity: selectedDistrict === d.id ? 1 : 0.8 }}
+              >
+                {d.label}
+              </button>
+            ))}
           </div>
           <div className="industry-curation-strip reveal delay-1">
             <div>
@@ -1023,45 +1145,92 @@ function IndustryView({
             ]}
           />
           <div className="story-stack reveal delay-2">
-            {items.map((item, index) => (
-              <article className="story-card" key={item.id}>
-                <div className="story-index">
-                  {String(index + 1).padStart(2, "0")}
-                </div>
-                <div className="story-body">
-                  <div className="story-meta">
-                    <span>{item.source}</span>
-                    <i />
-                    <span>{formatDate(item.publishedAt)}</span>
-                    <Label
-                      tone={item.kind === "sitemap" ? "brief" : "positive"}
-                    >
-                      {kindLabel(item)}
-                    </Label>
-                    {item.importanceScore !== undefined && (
-                      <Label tone="verified">
-                        {item.importanceScore} importance
-                      </Label>
-                    )}
-                    {view === "history" && (
-                      <Label tone="watch">History</Label>
-                    )}
-                    {view === "archive" && (
-                      <Label tone="watch">Archived</Label>
-                    )}
+            {items.map((item, index) => {
+              const meta = item.jobMetadata || extractJobMetadata(item.title, item.summary);
+              return (
+                <article className="story-card" key={item.id}>
+                  <div className="story-index">
+                    {String(index + 1).padStart(2, "0")}
                   </div>
-                  <h2>{item.title}</h2>
-                  <p>
-                    {item.summary ||
-                      "Open the original source for the full update."}
-                  </p>
-                  {item.importanceReason && view === "active" && (
-                    <p className="importance-reason">
-                      <Sparkles size={12} /> {item.importanceReason}
+                  <div className="story-body">
+                    <div className="story-meta" style={{ flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                      <span>{item.source}</span>
+                      <i />
+                      <span>{formatDate(item.publishedAt)}</span>
+                      {meta.fitResult ? (
+                        <Label
+                          tone={meta.fitResult.level === "high" ? "positive" : meta.fitResult.level === "medium" ? "verified" : meta.fitResult.level === "mismatch" ? "high" : "brief"}
+                          title={meta.fitResult.reasons.concat(meta.fitResult.dealBreakers).join(" · ")}
+                        >
+                          {meta.fitResult.label}
+                        </Label>
+                      ) : null}
+                      {meta.totalPosts ? (
+                        <Label tone="positive">
+                          🏷️ {meta.totalPosts.toLocaleString()} Posts
+                        </Label>
+                      ) : null}
+                      <Label tone={meta.stage === "new-vacancy" ? "positive" : meta.stage === "admit-card" ? "watch" : meta.stage === "result" ? "verified" : "brief"}>
+                        {meta.stageLabel}
+                      </Label>
+                      {meta.department ? (
+                        <Label tone="brief">{meta.department}</Label>
+                      ) : null}
+                      {meta.district ? (
+                        <Label tone="brief">📍 {meta.district}</Label>
+                      ) : null}
+                      {meta.qualificationTags.slice(0, 2).map((qual: string) => (
+                        <Label key={qual} tone="brief">{qual}</Label>
+                      ))}
+                      {meta.lastDate ? (
+                        <Label tone={meta.isUrgent ? "high" : "watch"}>
+                          ⏰ Last Date: {meta.lastDate}
+                        </Label>
+                      ) : null}
+                      {view === "history" && (
+                        <Label tone="watch">History</Label>
+                      )}
+                      {view === "archive" && (
+                        <Label tone="watch">Archived</Label>
+                      )}
+                    </div>
+                    <h2>{item.title}</h2>
+                    <p>
+                      {item.summary ||
+                        "Open the original portal post for notification PDF and application link."}
                     </p>
-                  )}
+                    {item.importanceReason && view === "active" && (
+                      <p className="importance-reason">
+                        <Sparkles size={12} /> {item.importanceReason}
+                      </p>
+                    )}
                   <div className="story-footer">
-                    <span />
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                      {meta.directPdfUrl && (
+                        <a
+                          className="button button-ghost"
+                          style={{ fontSize: "11px", padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: "4px", textDecoration: "none" }}
+                          href={meta.directPdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Download Official Notification PDF"
+                        >
+                          📄 Official PDF <ArrowUpRight size={11} />
+                        </a>
+                      )}
+                      {meta.directApplyUrl && (
+                        <a
+                          className="button button-primary"
+                          style={{ fontSize: "11px", padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: "4px", textDecoration: "none" }}
+                          href={meta.directApplyUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Direct Application Portal"
+                        >
+                          🚀 Apply Online <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
                     <div>
                       {view === "active" && (
                         <button
@@ -1101,8 +1270,9 @@ function IndustryView({
                   </div>
                 </div>
               </article>
-            ))}
-            {!items.length && (
+            );
+          })}
+          {!items.length && (
               <Panel className="empty-state">
                 <CheckCircle2 size={24} />
                 <h2>
@@ -1150,9 +1320,9 @@ function MentionsView({
   return (
     <div className="view">
       <PageHeading
-        eyebrow="Seven-day web radar"
-        title="Mentions"
-        description="Verified third-party pages from the past week, matched to the identities you configure and deduplicated against your local archive."
+        eyebrow="Targeted Department & Exam Watch"
+        title="Exam Radar"
+        description="Track specific Assam recruitment notifications, exam schedules, and department notices across web and news sources."
         action={
           <button
             className="button button-ghost"
@@ -1170,8 +1340,8 @@ function MentionsView({
       ) : !data?.configured ? (
         <SetupEmpty
           icon={<AtSign />}
-          title="Tell the radar what to watch"
-          description="Add exact aliases plus identity anchors that distinguish you from namesakes."
+          title="Configure Tracked Exams & Departments"
+          description="Add exam names (e.g. APSC CCE, ADRE Grade 3, Assam Police) and identity anchors to monitor."
           onSetup={openSettings}
         />
       ) : (
@@ -1273,6 +1443,17 @@ function MentionsView({
                         : "Review"}
                     </Label>
                     {item.matchedTerm && <Label>{item.matchedTerm}</Label>}
+                    {item.jobMetadata?.fitResult ? (
+                      <Label
+                        tone={item.jobMetadata.fitResult.level === "high" ? "positive" : item.jobMetadata.fitResult.level === "medium" ? "verified" : item.jobMetadata.fitResult.level === "mismatch" ? "high" : "brief"}
+                        title={item.jobMetadata.fitResult.reasons.concat(item.jobMetadata.fitResult.dealBreakers).join(" · ")}
+                      >
+                        {item.jobMetadata.fitResult.label}
+                      </Label>
+                    ) : null}
+                    {item.jobMetadata?.stageLabel ? (
+                      <Label tone="brief">{item.jobMetadata.stageLabel}</Label>
+                    ) : null}
                   </div>
                   <p>“{item.title}”</p>
                   <div className="mention-page-summary">{item.aiSummary || item.summary}</div>
@@ -1347,47 +1528,102 @@ function MentionsView({
 function RemindersView({
   reminders,
   addReminder,
+  updateReminder,
   archiveReminder,
 }: {
   reminders: Reminder[];
-  addReminder: (title: string, note: string, url?: string) => void;
+  addReminder: (
+    title: string,
+    note: string,
+    url?: string,
+    meta?: Partial<ReminderItem>,
+  ) => void;
+  updateReminder: (id: string | number, patch: Partial<ReminderItem>) => void;
   archiveReminder: (id: string | number, archived: boolean) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
+  const [url, setUrl] = useState("");
+  const [dept, setDept] = useState("");
+  const [stage, setStage] = useState<ApplicationStage>("saved");
+  const [regNo, setRegNo] = useState("");
   const [view, setView] = useState<"active" | "archive">("active");
+  const [filterStage, setFilterStage] = useState<string>("all");
+  const [editingId, setEditingId] = useState<string | number | null>(null);
+  const [editStage, setEditStage] = useState<ApplicationStage>("saved");
+  const [editRegNo, setEditRegNo] = useState("");
+  const [editRollNo, setEditRollNo] = useState("");
+  const [editExamDate, setEditExamDate] = useState("");
+
+  const STAGE_CONFIG: Record<
+    ApplicationStage,
+    { label: string; tone: "brief" | "watch" | "positive" | "verified" | "high" }
+  > = {
+    saved: { label: "📌 Saved", tone: "brief" },
+    applied: { label: "📝 Applied", tone: "watch" },
+    "admit-card": { label: "🎫 Admit Card", tone: "verified" },
+    "exam-done": { label: "✍️ Exam Done", tone: "brief" },
+    result: { label: "🏆 Result / Selected", tone: "positive" },
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
     addReminder(
       title.trim(),
       note.trim(),
-      title.startsWith("http") ? title : undefined,
+      url.trim() || (title.startsWith("http") ? title : undefined),
+      {
+        applicationStage: stage,
+        department: dept.trim() || undefined,
+        registrationNumber: regNo.trim() || undefined,
+      },
     );
     setTitle("");
     setNote("");
+    setUrl("");
+    setDept("");
+    setRegNo("");
     setShowForm(false);
   };
+
+  const saveEdit = (id: string | number) => {
+    updateReminder(id, {
+      applicationStage: editStage,
+      registrationNumber: editRegNo.trim() || undefined,
+      rollNumber: editRollNo.trim() || undefined,
+      examDate: editExamDate.trim() || undefined,
+    });
+    setEditingId(null);
+  };
+
   const active = reminders
     .filter((item) => !item.archivedAt)
     .sort(
       (left, right) =>
         Date.parse(right.createdAt || "") - Date.parse(left.createdAt || ""),
     );
+
   const archived = reminders
     .filter((item) => item.archivedAt)
     .sort(
       (left, right) =>
         Date.parse(right.archivedAt || "") - Date.parse(left.archivedAt || ""),
     );
-  const items = view === "archive" ? archived : active;
+
+  const baseItems = view === "archive" ? archived : active;
+  const items =
+    view === "archive" || filterStage === "all"
+      ? baseItems
+      : baseItems.filter((item) => (item.applicationStage || "saved") === filterStage);
+
   return (
     <div className="view">
       <PageHeading
-        eyebrow="Come back to this"
-        title="Reminders"
-        description="Save articles, videos, posts, and ideas without turning them into tasks."
+        eyebrow="Government Job Pipeline"
+        title="Application Funnel"
+        description="Track your exam applications across every stage: Saved, Applied, Admit Card, Exam, and Results."
         action={
           <button
             className="button button-primary"
@@ -1396,118 +1632,315 @@ function RemindersView({
               setShowForm(true);
             }}
           >
-            <Plus size={16} /> Save something
+            <Plus size={16} /> Track New Job
           </button>
         }
       />
       {showForm && (
-        <form className="quick-form reveal" onSubmit={submit}>
-          <div className="form-icon">
-            <Link2 size={20} />
+        <form className="quick-form reveal" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div className="form-icon">
+              <Link2 size={20} />
+            </div>
+            <label style={{ flex: 1 }}>
+              <span>Job / Recruitment Title</span>
+              <input
+                autoFocus
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="e.g. APSC CCE 2026 or Assam Police Constable"
+                required
+              />
+            </label>
+            <label style={{ width: "170px" }}>
+              <span>Initial Stage</span>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value as ApplicationStage)}
+                style={{ padding: "8px", borderRadius: "6px", width: "100%", background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+              >
+                <option value="saved">📌 Saved</option>
+                <option value="applied">📝 Applied</option>
+                <option value="admit-card">🎫 Admit Card Ready</option>
+                <option value="exam-done">✍️ Exam Attended</option>
+                <option value="result">🏆 Result / Selected</option>
+              </select>
+            </label>
           </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            <label>
+              <span>Application / Registration No. (Optional)</span>
+              <input
+                value={regNo}
+                onChange={(event) => setRegNo(event.target.value)}
+                placeholder="e.g. APSC/2026/89421"
+              />
+            </label>
+            <label>
+              <span>Recruitment Agency / Dept</span>
+              <input
+                value={dept}
+                onChange={(event) => setDept(event.target.value)}
+                placeholder="e.g. APSC, SLPRB, ADRE"
+              />
+            </label>
+            <label>
+              <span>Official Link / Portal URL</span>
+              <input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://apsc.nic.in"
+              />
+            </label>
+          </div>
+
           <label>
-            <span>Link or title</span>
-            <input
-              autoFocus
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Paste a URL or type a title…"
-            />
-          </label>
-          <label>
-            <span>Why save it?</span>
+            <span>Notes / Syllabus / Exam Pattern</span>
             <input
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="A note for future you"
+              placeholder="Important notes, centers, or next revision dates..."
             />
           </label>
-          <button className="button button-primary">Save</button>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => setShowForm(false)}
-          >
-            <X size={16} />
-          </button>
+
+          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => setShowForm(false)}
+            >
+              <X size={16} /> Cancel
+            </button>
+            <button className="button button-primary">Save to Tracker</button>
+          </div>
         </form>
       )}
-      <div className="shelf-controls reveal delay-1">
-        <div className="filter-row">
-          <button
-            className={view === "active" ? "active" : ""}
-            onClick={() => setView("active")}
-          >
-            Active {active.length}
-          </button>
-          <button
-            className={view === "archive" ? "active" : ""}
-            onClick={() => setView("archive")}
-          >
-            Archive {archived.length}
-          </button>
+
+      <div className="shelf-controls reveal delay-1" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+          <div className="filter-row">
+            <button
+              className={view === "active" ? "active" : ""}
+              onClick={() => setView("active")}
+            >
+              Active Pipeline {active.length}
+            </button>
+            <button
+              className={view === "archive" ? "active" : ""}
+              onClick={() => setView("archive")}
+            >
+              Archive {archived.length}
+            </button>
+          </div>
+          <span className="sort-label">
+            <ChevronDown size={15} /> Newest first
+          </span>
         </div>
-        <span className="sort-label">
-          <ChevronDown size={15} /> Newest first
-        </span>
+
+        {view === "active" && (
+          <div className="filter-row" style={{ flexWrap: "wrap", gap: "6px" }}>
+            <button
+              type="button"
+              className={filterStage === "all" ? "active" : ""}
+              onClick={() => setFilterStage("all")}
+              style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
+            >
+              All Stages ({active.length})
+            </button>
+            {(["saved", "applied", "admit-card", "exam-done", "result"] as ApplicationStage[]).map((stg) => {
+              const count = active.filter((i) => (i.applicationStage || "saved") === stg).length;
+              return (
+                <button
+                  key={stg}
+                  type="button"
+                  className={filterStage === stg ? "active" : ""}
+                  onClick={() => setFilterStage(stg)}
+                  style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
+                >
+                  {STAGE_CONFIG[stg].label} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+
       <div className="reminder-grid reveal delay-2">
-        {items.map((item) => (
-          <article
-            className={`reminder-card accent-${item.accent}`}
-            key={item.id}
-          >
-            <div className="reminder-top">
-              <Label>{item.type}</Label>
-              <button
-                title={
-                  view === "archive" ? "Restore reminder" : "Archive reminder"
-                }
-                onClick={() => archiveReminder(item.id, view === "active")}
-              >
-                {view === "archive" ? (
-                  <ArchiveRestore size={15} />
-                ) : (
-                  <Archive size={15} />
-                )}
-              </button>
-            </div>
-            <div className="reminder-icon">
-              <Newspaper />
-            </div>
-            <h2>{item.title}</h2>
-            <p>{item.note}</p>
-            <div className="reminder-bottom">
-              <span>
-                {item.source} ·{" "}
-                {item.createdAt
-                  ? formatDate(item.createdAt)
-                  : item.added || "Saved previously"}
-              </span>
-              {item.url && (
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  Open <ArrowUpRight size={14} />
-                </a>
+        {items.map((item) => {
+          const currentStage = (item.applicationStage || "saved") as ApplicationStage;
+          const stageBadge = STAGE_CONFIG[currentStage] || STAGE_CONFIG.saved;
+          const isEditing = editingId === item.id;
+
+          return (
+            <article
+              className={`reminder-card accent-${item.accent}`}
+              key={item.id}
+              style={{ position: "relative" }}
+            >
+              <div className="reminder-top" style={{ flexWrap: "wrap", gap: "6px" }}>
+                <Label tone={stageBadge.tone}>{stageBadge.label}</Label>
+                {item.department ? (
+                  <Label tone="brief">{item.department}</Label>
+                ) : null}
+                {item.totalPosts ? (
+                  <Label tone="positive">🏷️ {item.totalPosts.toLocaleString()} Posts</Label>
+                ) : null}
+                {item.lastDate ? (
+                  <Label tone="watch">⏰ {item.lastDate}</Label>
+                ) : null}
+                <button
+                  title={
+                    view === "archive" ? "Restore application" : "Archive application"
+                  }
+                  onClick={() => archiveReminder(item.id, view === "active")}
+                  style={{ marginLeft: "auto" }}
+                >
+                  {view === "archive" ? (
+                    <ArchiveRestore size={15} />
+                  ) : (
+                    <Archive size={15} />
+                  )}
+                </button>
+              </div>
+
+              <h2>{item.title}</h2>
+              {item.note && <p>{item.note}</p>}
+
+              {/* Application Details Strip */}
+              {(item.registrationNumber || item.rollNumber || item.examDate) && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", margin: "8px 0", fontSize: "11px" }}>
+                  {item.registrationNumber && (
+                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
+                      Reg: <strong>{item.registrationNumber}</strong>
+                    </span>
+                  )}
+                  {item.rollNumber && (
+                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
+                      Roll: <strong>{item.rollNumber}</strong>
+                    </span>
+                  )}
+                  {item.examDate && (
+                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
+                      📅 Exam: <strong>{item.examDate}</strong>
+                    </span>
+                  )}
+                </div>
               )}
-            </div>
-          </article>
-        ))}
+
+              {/* Status Update Inline Drawer */}
+              {isEditing ? (
+                <div style={{ marginTop: "10px", padding: "10px", background: "var(--bg-subtle)", borderRadius: "8px", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <label style={{ fontSize: "11px" }}>
+                    <span>Stage</span>
+                    <select
+                      value={editStage}
+                      onChange={(e) => setEditStage(e.target.value as ApplicationStage)}
+                      style={{ padding: "5px", borderRadius: "4px", width: "100%", marginTop: "2px" }}
+                    >
+                      <option value="saved">📌 Saved</option>
+                      <option value="applied">📝 Applied</option>
+                      <option value="admit-card">🎫 Admit Card Ready</option>
+                      <option value="exam-done">✍️ Exam Done</option>
+                      <option value="result">🏆 Result / Selected</option>
+                    </select>
+                  </label>
+                  <label style={{ fontSize: "11px" }}>
+                    <span>Application / Reg No.</span>
+                    <input
+                      value={editRegNo}
+                      onChange={(e) => setEditRegNo(e.target.value)}
+                      placeholder="e.g. 2026/0491"
+                      style={{ padding: "4px", width: "100%" }}
+                    />
+                  </label>
+                  <label style={{ fontSize: "11px" }}>
+                    <span>Roll No.</span>
+                    <input
+                      value={editRollNo}
+                      onChange={(e) => setEditRollNo(e.target.value)}
+                      placeholder="e.g. 1094821"
+                      style={{ padding: "4px", width: "100%" }}
+                    />
+                  </label>
+                  <label style={{ fontSize: "11px" }}>
+                    <span>Exam Date</span>
+                    <input
+                      value={editExamDate}
+                      onChange={(e) => setEditExamDate(e.target.value)}
+                      placeholder="e.g. 15 Oct 2026"
+                      style={{ padding: "4px", width: "100%" }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", marginTop: "4px" }}>
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      style={{ fontSize: "11px", padding: "3px 8px" }}
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ fontSize: "11px", padding: "3px 8px" }}
+                      onClick={() => saveEdit(item.id)}
+                    >
+                      Save Status
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="reminder-bottom" style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>
+                  {item.source} ·{" "}
+                  {item.createdAt
+                    ? formatDate(item.createdAt)
+                    : item.added || "Saved previously"}
+                </span>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  {!isEditing && (
+                    <button
+                      className="button button-ghost"
+                      style={{ fontSize: "11px", padding: "2px 7px" }}
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setEditStage((item.applicationStage || "saved") as ApplicationStage);
+                        setEditRegNo(item.registrationNumber || "");
+                        setEditRollNo(item.rollNumber || "");
+                        setEditExamDate(item.examDate || "");
+                      }}
+                    >
+                      ✏️ Advance / Edit
+                    </button>
+                  )}
+                  {item.url && (
+                    <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      Open <ArrowUpRight size={13} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
         {view === "active" && (
           <button className="add-card" onClick={() => setShowForm(true)}>
             <Plus />
             <span>
-              {reminders.length ? "Save another thing" : "Your shelf is empty"}
+              {reminders.length ? "Track Another Job" : "Your pipeline is empty"}
             </span>
-            <small>Paste any link from the web</small>
+            <small>Save from feed or paste job link directly</small>
           </button>
         )}
         {view === "archive" && !items.length && (
           <Panel className="empty-state">
             <Archive size={24} />
-            <h2>No archived reminders</h2>
+            <h2>No archived applications</h2>
             <p>
-              Archived links and ideas stay available here until you restore
-              them.
+              Completed and closed job applications stay available here.
             </p>
           </Panel>
         )}
@@ -2407,6 +2840,7 @@ function SettingsView({
     icon: typeof Activity;
   }> = [
     { id: "general", label: "General", icon: Settings2 },
+    { id: "candidateProfile", label: "Candidate Profile & Fit", icon: ShieldCheck },
     { id: "dailyBrief", label: "Daily brief", icon: LayoutDashboard },
     { id: "industry", label: "Industry", icon: Globe2 },
     { id: "mentions", label: "Mentions", icon: AtSign },
@@ -2521,6 +2955,166 @@ function SettingsView({
                   }
                   placeholder="Control Center"
                 />
+              </div>
+            </Panel>
+          )}
+          {section === "candidateProfile" && (
+            <Panel className="settings-panel">
+              <div className="settings-title">
+                <ShieldCheck />
+                <div>
+                  <p className="eyebrow">Personalized Matching</p>
+                  <h2>Candidate Profile & Statutory Eligibility</h2>
+                  <p>
+                    Set your educational background, category, and district. AxomRank automatically evaluates every vacancy against your qualifications, flags deal-breakers, and calculates a 0–100% Fit Score.
+                  </p>
+                </div>
+              </div>
+              <div className="settings-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
+                <label>
+                  <span>Highest Qualification</span>
+                  <select
+                    value={draft.candidateProfile?.education || "Graduate"}
+                    onChange={(e) =>
+                      setDraft((v) => ({
+                        ...v,
+                        candidateProfile: {
+                          ...(v.candidateProfile || DEFAULT_CANDIDATE_PROFILE),
+                          education: e.target.value,
+                        },
+                      }))
+                    }
+                    style={{ padding: "8px", borderRadius: "6px", width: "100%", background: "var(--bg-subtle)", border: "1px solid var(--border)", marginTop: "4px" }}
+                  >
+                    <option value="Graduate">Graduate (BA / BSc / BCom / BBA / BCA)</option>
+                    <option value="12th / HSSLC">12th / HSSLC (Higher Secondary)</option>
+                    <option value="10th / HSLC">10th / HSLC (Matriculation)</option>
+                    <option value="Post Graduate">Post Graduate (MA / MSc / MCom / MBA / MCA)</option>
+                    <option value="B.Tech / BE">B.Tech / BE (Engineering)</option>
+                    <option value="Diploma">Diploma (Polytechnic)</option>
+                    <option value="ITI">ITI (NCVT / SCVT Certificate)</option>
+                    <option value="B.Ed / D.El.Ed / TET">B.Ed / D.El.Ed / TET (Teaching)</option>
+                    <option value="Medical / Nursing">Medical / Nursing (MBBS / GNM / ANM)</option>
+                    <option value="Law / LLB">Law / LLB (Advocate / Legal)</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Social Category / Quota</span>
+                  <select
+                    value={draft.candidateProfile?.category || "General"}
+                    onChange={(e) =>
+                      setDraft((v) => ({
+                        ...v,
+                        candidateProfile: {
+                          ...(v.candidateProfile || DEFAULT_CANDIDATE_PROFILE),
+                          category: e.target.value,
+                        },
+                      }))
+                    }
+                    style={{ padding: "8px", borderRadius: "6px", width: "100%", background: "var(--bg-subtle)", border: "1px solid var(--border)", marginTop: "4px" }}
+                  >
+                    <option value="General">General / Unreserved (UR)</option>
+                    <option value="OBC/MOBC">OBC / MOBC (Assam State List)</option>
+                    <option value="SC">SC (Scheduled Caste)</option>
+                    <option value="ST(P)">ST(P) (Scheduled Tribe Plains)</option>
+                    <option value="ST(H)">ST(H) (Scheduled Tribe Hills)</option>
+                    <option value="EWS">EWS (Economically Weaker Section)</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Home District</span>
+                  <select
+                    value={draft.candidateProfile?.homeDistrict || "Guwahati"}
+                    onChange={(e) =>
+                      setDraft((v) => ({
+                        ...v,
+                        candidateProfile: {
+                          ...(v.candidateProfile || DEFAULT_CANDIDATE_PROFILE),
+                          homeDistrict: e.target.value,
+                        },
+                      }))
+                    }
+                    style={{ padding: "8px", borderRadius: "6px", width: "100%", background: "var(--bg-subtle)", border: "1px solid var(--border)", marginTop: "4px" }}
+                  >
+                    {ASSAM_DISTRICTS.map((district) => (
+                      <option key={district} value={district}>
+                        {district}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                  <span>Assam Employment Exchange Registration</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                    <input
+                      type="checkbox"
+                      id="empExchangeCheck"
+                      checked={draft.candidateProfile?.hasEmploymentExchange ?? true}
+                      onChange={(e) =>
+                        setDraft((v) => ({
+                          ...v,
+                          candidateProfile: {
+                            ...(v.candidateProfile || DEFAULT_CANDIDATE_PROFILE),
+                            hasEmploymentExchange: e.target.checked,
+                          },
+                        }))
+                      }
+                      style={{ width: "16px", height: "16px" }}
+                    />
+                    <label htmlFor="empExchangeCheck" style={{ fontSize: "13px", cursor: "pointer" }}>
+                      I have an active Assam Employment Exchange card
+                    </label>
+                  </div>
+                </label>
+              </div>
+
+              <div style={{ marginTop: "20px" }}>
+                <span style={{ fontWeight: 600, fontSize: "13px" }}>Target Recruitment Agencies</span>
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "10px" }}>
+                  Selected agencies will receive highest priority (+30 pts) in your Fit Score.
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {[
+                    "APSC",
+                    "ADRE / SLRC",
+                    "Assam Police / SLPRB",
+                    "Banking (SBI/IBPS/AGVB)",
+                    "Education (DEE/DHE/SSA)",
+                    "Health (DHS/DME/NHM)",
+                    "Judiciary / High Court",
+                    "APDCL / AEGCL",
+                    "Oil / PSU (Assam)",
+                  ].map((dept) => {
+                    const isSelected = (draft.candidateProfile?.preferredDepartments || DEFAULT_CANDIDATE_PROFILE.preferredDepartments).includes(dept);
+                    return (
+                      <button
+                        key={dept}
+                        type="button"
+                        className={isSelected ? "button button-primary" : "button button-ghost"}
+                        style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
+                        onClick={() => {
+                          const currentDepts = draft.candidateProfile?.preferredDepartments || DEFAULT_CANDIDATE_PROFILE.preferredDepartments;
+                          const nextDepts = isSelected
+                            ? currentDepts.filter((d) => d !== dept)
+                            : [...currentDepts, dept];
+                          setDraft((v) => ({
+                            ...v,
+                            candidateProfile: {
+                              ...(v.candidateProfile || DEFAULT_CANDIDATE_PROFILE),
+                              preferredDepartments: nextDepts,
+                            },
+                          }));
+                        }}
+                      >
+                        {isSelected ? "✓ " : "+ "}
+                        {dept}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </Panel>
           )}
@@ -3528,7 +4122,12 @@ export function ControlCenter() {
     window.history.replaceState({}, "", url);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const addReminder = (title: string, note: string, url?: string) => {
+  const addReminder = (
+    title: string,
+    note: string,
+    url?: string,
+    meta?: Partial<ReminderItem>,
+  ) => {
     let source = "Manual";
     if (url) {
       try {
@@ -3540,17 +4139,28 @@ export function ControlCenter() {
     setReminders((values) => [
       {
         id: crypto.randomUUID(),
-        type: url ? "Link" : "Saved",
+        type: url ? "Job" : "Saved",
         title,
         source,
         createdAt: new Date().toISOString(),
-        note: note || "Saved for later.",
+        note: note || "Tracked job application.",
         accent: "teal",
         url,
+        applicationStage: meta?.applicationStage || "saved",
+        department: meta?.department,
+        totalPosts: meta?.totalPosts,
+        lastDate: meta?.lastDate,
+        ...meta,
       },
       ...values,
     ]);
-    setToast("Saved to reminders");
+    setToast("Saved to Applications");
+  };
+  const updateReminder = (id: string | number, patch: Partial<ReminderItem>) => {
+    setReminders((values) =>
+      values.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+    setToast("Application updated");
   };
   const addBriefTask = (item: DailyBriefItem) => {
     const id = `brief:${item.id}`;
@@ -3721,7 +4331,12 @@ export function ControlCenter() {
         {activeTab === "industry" && (
           <IndustryView
             saveStory={(story) =>
-              addReminder(story.title, story.summary, story.url)
+              addReminder(story.title, story.summary, story.url, {
+                department: story.jobMetadata?.department,
+                totalPosts: story.jobMetadata?.totalPosts,
+                lastDate: story.jobMetadata?.lastDate,
+                applicationStage: "saved",
+              })
             }
             openSettings={() => openSettings("industry")}
           />
@@ -3729,7 +4344,12 @@ export function ControlCenter() {
         {activeTab === "mentions" && (
           <MentionsView
             saveStory={(story) =>
-              addReminder(story.title, story.summary, story.url)
+              addReminder(story.title, story.summary, story.url, {
+                department: story.jobMetadata?.department,
+                totalPosts: story.jobMetadata?.totalPosts,
+                lastDate: story.jobMetadata?.lastDate,
+                applicationStage: "saved",
+              })
             }
             openSettings={() => openSettings("mentions")}
           />
@@ -3738,6 +4358,7 @@ export function ControlCenter() {
           <RemindersView
             reminders={reminders}
             addReminder={addReminder}
+            updateReminder={updateReminder}
             archiveReminder={(id, archived) =>
               setReminders((values) =>
                 values.map((item) =>

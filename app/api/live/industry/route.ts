@@ -15,6 +15,7 @@ import {
   readCollectorSnapshot,
   writeCollectorSnapshot,
 } from "@/lib/collector-cache";
+import { extractJobMetadata } from "@/lib/assam-job-classifier";
 
 export const runtime = "nodejs";
 
@@ -198,14 +199,17 @@ async function collectIndustry() {
       });
     }
   }
-  const surfacedItems: LiveStory[] = selected.map((candidate) => ({
-    ...candidate.item,
-    id: `industry:${candidate.discoveryId}`,
-    collectionScope: surfacedScope,
-    importanceScore: candidate.score,
-    importanceReason: candidate.reasons.slice(0, 3).join(" · ") ||
-      "Ranked as a timely, relevant industry update.",
-  }));
+  const surfacedItems: LiveStory[] = selected
+    .map((candidate) => ({
+      ...candidate.item,
+      id: `industry:${candidate.discoveryId}`,
+      collectionScope: surfacedScope,
+      importanceScore: candidate.score,
+      importanceReason: candidate.reasons.slice(0, 3).join(" · ") ||
+        "Ranked as a timely, relevant Assam recruitment update.",
+      jobMetadata: extractJobMetadata(candidate.item.title, candidate.item.summary, settings.candidateProfile),
+    }))
+    .filter((item) => item.jobMetadata?.isRecruitment !== false);
   const saved = syncContentItems<LiveStory>("industry", surfacedItems, {
     freshSince,
     freshUntil,

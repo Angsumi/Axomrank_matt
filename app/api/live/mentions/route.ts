@@ -39,6 +39,7 @@ import {
   readCollectorSnapshot,
   writeCollectorSnapshot,
 } from "@/lib/collector-cache";
+import { extractJobMetadata } from "@/lib/assam-job-classifier";
 
 export const runtime = "nodejs";
 
@@ -442,7 +443,12 @@ async function collectMentions(
     };
   });
   providerStatuses.push(aiProviderStatus, curationStatus);
-  const items = sortFeedStories(saved.active.map(localMentionPriority));
+  const items = sortFeedStories(saved.active.map(localMentionPriority))
+    .map((item) => ({
+      ...item,
+      jobMetadata: extractJobMetadata(item.title, item.summary, settings.candidateProfile),
+    }))
+    .filter((item) => item.jobMetadata?.isRecruitment !== false);
   const currentSummaries = items.filter((story) => story.aiSummary?.trim() && story.curationMode === settings.ai.provider).length;
   const savedSummaryProvider = items.find((story) => story.aiSummary?.trim() && story.curationMode && story.curationMode !== "local")?.curationMode;
   if (currentSummaries && settings.ai.provider !== "none") curationMode = settings.ai.provider;

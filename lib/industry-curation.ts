@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { NON_JOB_PATTERNS } from "@/lib/assam-job-classifier";
 
 export const DEFAULT_INDUSTRY_SELECTION_LIMIT = 30;
 export const DEFAULT_INDUSTRY_MINIMUM_SCORE = 50;
@@ -70,7 +71,7 @@ const providerWrapperHosts = new Set([
 ]);
 
 const trackingParameters = /^(?:utm_.+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|ref|referrer|source|campaign)$/i;
-const materialChangePattern = /\b(?:acquir(?:e|es|ed|ing|ition)|announce(?:s|d|ment)?|approval|breach|expand(?:s|ed|ing)?|funding|invest(?:s|ed|ment)|launch(?:es|ed|ing)?|law|lawsuit|merg(?:e|es|ed|er)|open(?:s|ed|ing)|partnership|patent|policy|recall|regulation|release(?:s|d)?|report|research|security|standard|study|unveil(?:s|ed)?|update(?:s|d)?|upgrade(?:s|d)?)\b/i;
+const materialChangePattern = /\b(?:acquir(?:e|es|ed|ing|ition)|admit\s*card|answer\s*key|announce(?:s|d|ment)?|application|approval|apsc|adre|breach|corrigendum|cutoff|cut\s*off|employment|exam(?:ination)?|expand(?:s|ed|ing)?|funding|hall\s*ticket|interview|invest(?:s|ed|ment)|job(?:s)?|launch(?:es|ed|ing)?|law|lawsuit|merit\s*list|merg(?:e|es|ed|er)|notifi(?:cation|ed|es)|open(?:s|ed|ing)|partnership|patent|policy|post(?:s)?|recall|recruit(?:ment|s|ed)?|regulation|release(?:s|d)?|report|research|result(?:s)?|routine|sakori|salary|schedule|scholarship|security|selection|slprb|standard|study|syllabus|tet|unveil(?:s|ed)?|update(?:s|d)?|upgrade(?:s|d)?|vacanc(?:y|ies))\b/i;
 const evergreenPattern = /\b(?:beginner(?:'s)? guide|explainer|how to|podcast|tips|tutorial|webinar)\b/i;
 const routinePathPattern = /\/(?:author|authors|category|categories|contact|cookie-policy|legal|login|page|privacy|search|sign-in|tag|tags|terms)(?:\/|$)/i;
 const defaultRoutineExclusions = [
@@ -226,6 +227,13 @@ export function scoreIndustryDiscovery(
   const exclusionMatches = termMatches(context, options.excludeTerms);
   if (exclusionMatches.length) {
     return { score: 0, reasons: [], excludedReason: `Matches excluded topic: ${exclusionMatches[0]}` };
+  }
+
+  if (NON_JOB_PATTERNS.test(context)) {
+    const hasExplicitHiring = /\b(?:apply\s*online|online\s*application|application\s*form|recruitment\s*notification|advertisement\s*no|notification\s*no|\d+\s*(?:posts|vacancies))\b/i.test(context);
+    if (!hasExplicitHiring) {
+      return { score: 0, reasons: [], excludedReason: "Non-recruitment noise: tragic, crime, accident, or political event" };
+    }
   }
 
   const routineTerms = options.routineExclusions === false

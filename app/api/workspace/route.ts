@@ -22,17 +22,28 @@ function cleanReminders(value: unknown): ReminderItem[] {
     const candidate = item as Partial<ReminderItem>;
     const title = cleanText(candidate.title).trim();
     if (!title) return [];
+    const stage = candidate.applicationStage;
+    const validStage = ["saved", "applied", "admit-card", "exam-done", "result"].includes(stage as string)
+      ? (stage as ReminderItem["applicationStage"])
+      : "saved";
     return [{
       id: cleanId(candidate.id),
-      type: cleanText(candidate.type, candidate.url ? "Link" : "Saved"),
+      type: cleanText(candidate.type, candidate.url ? "Job" : "Saved"),
       title,
       source: cleanText(candidate.source, "Manual"),
-      note: cleanText(candidate.note, "Saved for later."),
+      note: cleanText(candidate.note, "Tracked job application."),
       accent: cleanText(candidate.accent, "teal"),
       url: cleanText(candidate.url) || undefined,
       createdAt: cleanText(candidate.createdAt) || undefined,
       archivedAt: cleanText(candidate.archivedAt) || undefined,
       added: cleanText(candidate.added) || undefined,
+      applicationStage: validStage,
+      registrationNumber: cleanText(candidate.registrationNumber) || undefined,
+      rollNumber: cleanText(candidate.rollNumber) || undefined,
+      examDate: cleanText(candidate.examDate) || undefined,
+      department: cleanText(candidate.department) || undefined,
+      totalPosts: typeof candidate.totalPosts === "number" ? candidate.totalPosts : undefined,
+      lastDate: cleanText(candidate.lastDate) || undefined,
     }];
   });
 }

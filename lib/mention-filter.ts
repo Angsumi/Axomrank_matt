@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { NON_JOB_PATTERNS } from "@/lib/assam-job-classifier";
 
 import type { LiveStory } from "@/lib/types";
 
@@ -403,6 +404,12 @@ export function evaluateMention(
   const matchedNegative = (evidence.negativeTerms ?? []).find((term) => containsMentionSignal(negativeContextText, term));
   if (matchedNegative) {
     return { accepted: false, confidence: "medium", review: false, score: 0, reasons: [`Excluded context: ${matchedNegative}`] };
+  }
+  if (NON_JOB_PATTERNS.test(negativeContextText)) {
+    const hasExplicitHiring = /\b(?:apply\s*online|online\s*application|application\s*form|recruitment\s*notification|advertisement\s*no|notification\s*no|\d+\s*(?:posts|vacancies))\b/i.test(negativeContextText);
+    if (!hasExplicitHiring) {
+      return { accepted: false, confidence: "medium", review: false, score: 0, reasons: ["Excluded context: tragic, crime, or non-recruitment event"] };
+    }
   }
   if (!primaryDirect) {
     return {

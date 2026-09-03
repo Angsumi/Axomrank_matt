@@ -42,6 +42,7 @@ type StoredAudienceAccount = Omit<
 
 export type StoredSettings = {
   general: { workspaceName: string };
+  candidateProfile?: CandidateProfile;
   industry: PublicSettings["industry"];
   mentions: PublicSettings["mentions"];
   newsletters: {
@@ -63,22 +64,35 @@ export type StoredSettings = {
   dailyBrief: PublicSettings["dailyBrief"];
 };
 
+import {
+  DEFAULT_ASSAM_SOURCES,
+  DEFAULT_ASSAM_TOPIC_KEYWORDS,
+  DEFAULT_EXAM_RADAR_ANCHORS,
+  DEFAULT_EXAM_RADAR_NEGATIVE_TERMS,
+  DEFAULT_EXAM_RADAR_TERMS,
+} from "@/lib/assam-job-presets";
+import {
+  type CandidateProfile,
+  DEFAULT_CANDIDATE_PROFILE,
+} from "@/lib/assam-job-classifier";
+
 const defaults: StoredSettings = {
-  general: { workspaceName: "Control Center" },
+  general: { workspaceName: "AxomRank — Assam Job Radar" },
+  candidateProfile: { ...DEFAULT_CANDIDATE_PROFILE },
   industry: {
-    sources: [],
-    keywords: [],
-    description: "",
-    excludedTerms: [],
-    dailyLimit: 30,
+    sources: [...DEFAULT_ASSAM_SOURCES],
+    keywords: [...DEFAULT_ASSAM_TOPIC_KEYWORDS],
+    description: "Assam government jobs, recruitment notifications, APSC, ADRE, police, TET, admit cards, and exam results.",
+    excludedTerms: [...DEFAULT_EXAM_RADAR_NEGATIVE_TERMS],
+    dailyLimit: 50,
   },
   mentions: {
-    terms: [],
-    websites: [],
-    identityAnchors: [],
-    negativeTerms: [],
+    terms: [...DEFAULT_EXAM_RADAR_TERMS],
+    websites: ["jobassam.in", "assamcareer.com", "assamjobalerts.com", "assamtribune.com", "apsc.nic.in", "slprbassam.in"],
+    identityAnchors: [...DEFAULT_EXAM_RADAR_ANCHORS],
+    negativeTerms: [...DEFAULT_EXAM_RADAR_NEGATIVE_TERMS],
     strictMode: true,
-    excludeOwnedSites: true,
+    excludeOwnedSites: false,
   },
   newsletters: {
     googleClientId: "",
@@ -220,6 +234,7 @@ export function toPublicSettings(settings: StoredSettings): PublicSettings {
         : "none" as const;
   return {
     general: settings.general,
+    candidateProfile: settings.candidateProfile || { ...DEFAULT_CANDIDATE_PROFILE },
     industry: settings.industry,
     mentions: settings.mentions,
     newsletters: {
@@ -420,6 +435,13 @@ export async function updateSettings(update: SettingsUpdate) {
       general: {
         workspaceName:
           update.general.workspaceName.trim() || defaults.general.workspaceName,
+      },
+      candidateProfile: {
+        education: update.candidateProfile?.education?.trim() || current.candidateProfile?.education || DEFAULT_CANDIDATE_PROFILE.education,
+        category: update.candidateProfile?.category?.trim() || current.candidateProfile?.category || DEFAULT_CANDIDATE_PROFILE.category,
+        homeDistrict: update.candidateProfile?.homeDistrict?.trim() || current.candidateProfile?.homeDistrict || DEFAULT_CANDIDATE_PROFILE.homeDistrict,
+        hasEmploymentExchange: update.candidateProfile?.hasEmploymentExchange ?? current.candidateProfile?.hasEmploymentExchange ?? DEFAULT_CANDIDATE_PROFILE.hasEmploymentExchange,
+        preferredDepartments: cleanList(update.candidateProfile?.preferredDepartments || current.candidateProfile?.preferredDepartments || DEFAULT_CANDIDATE_PROFILE.preferredDepartments),
       },
       industry: {
         sources: cleanIndustrySources(update.industry.sources),

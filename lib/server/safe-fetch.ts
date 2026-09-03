@@ -20,8 +20,9 @@ export async function safeFetchText(value: string, options: SafeFetchOptions = {
     response = await fetchPinned(currentUrl, {
       signal: AbortSignal.timeout(options.timeoutMs ?? 12_000),
       headers: {
-        "User-Agent": "ControlCenter/1.0 (+self-hosted feed reader)",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (AxomRank Job Radar)",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
         ...options.headers,
       },
     });

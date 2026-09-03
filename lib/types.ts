@@ -48,6 +48,7 @@ export type PublicSettings = {
   general: {
     workspaceName: string;
   };
+  candidateProfile?: CandidateProfile;
   industry: {
     sources: IndustrySource[];
     keywords: string[];
@@ -116,6 +117,9 @@ export type ContentWorkflow = {
   restoreEligible: boolean;
 };
 
+import type { CandidateProfile, JobCategory, JobFitResult, JobMetadata, JobStage } from "@/lib/assam-job-classifier";
+export type { CandidateProfile, JobCategory, JobFitResult, JobMetadata, JobStage };
+
 export type LiveStory = {
   id: string;
   title: string;
@@ -135,6 +139,7 @@ export type LiveStory = {
   curationMode?: "local" | AiKeyProvider;
   collectionScope?: string;
   workflow?: ContentWorkflow;
+  jobMetadata?: JobMetadata;
 };
 
 export type IndustrySourceStatus = {
@@ -248,6 +253,8 @@ export type NewsletterTopic = {
   workflow?: ContentWorkflow;
 };
 
+export type ApplicationStage = "saved" | "applied" | "admit-card" | "exam-done" | "result";
+
 export type ReminderItem = {
   id: string | number;
   type: string;
@@ -259,6 +266,13 @@ export type ReminderItem = {
   createdAt?: string;
   archivedAt?: string;
   added?: string;
+  applicationStage?: ApplicationStage;
+  registrationNumber?: string;
+  rollNumber?: string;
+  examDate?: string;
+  department?: string;
+  totalPosts?: number;
+  lastDate?: string;
 };
 
 export type TaskItem = {
@@ -320,5 +334,5 @@ export type DailyBriefSnapshotSection = {
   checkedAt: string;
   configured: boolean;
   stale: boolean;
-  items: Array<{ id: string; title: string; summary: string; url: string; source: string; importanceScore?: number }>;
+  items: Array<{ id: string; title: string; summary: string; url: string; source: string; importanceScore?: number; jobMetadata?: JobMetadata }>;
 };

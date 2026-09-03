@@ -1,5 +1,6 @@
 import type { BriefCategory, DailyBriefSnapshotSection, LiveFeedResponse, LiveStory, NewsletterFeedResponse, NewsletterTopic, PublicSettings } from "./types";
 import { localMentionPriority, newsletterPriority, sortFeedStories } from "./feed-priority";
+import { extractJobMetadata } from "./assam-job-classifier";
 
 export const briefCategories = ["industry", "mentions", "newsletters"] as const;
 export const defaultBriefSections = { industry: 5, mentions: 5, newsletters: 5 };
@@ -28,6 +29,7 @@ export function buildDailyBriefSnapshot(
       : category === "mentions" ? localMentionPriority(item as LiveStory) : item);
     const candidates = sortFeedStories(normalized.filter((item) => {
       if (item.workflow?.archiveReason === "user") return false;
+      if ("jobMetadata" in item && item.jobMetadata?.isRecruitment === false) return false;
       const occurredAt = "receivedAt" in item ? item.receivedAt : item.publishedAt || item.discoveredAt || "";
       const time = Date.parse(occurredAt);
       return Number.isFinite(time) && time >= now - hours * 3_600_000 && time <= now + 10 * 60_000;
@@ -42,6 +44,7 @@ export function buildDailyBriefSnapshot(
         summary: "aiSummary" in item && item.aiSummary ? item.aiSummary : item.summary,
         url: item.url, importanceScore: item.importanceScore,
         source: "newsletterSources" in item ? item.newsletterSources.join(", ") : item.source,
+        jobMetadata: "jobMetadata" in item && item.jobMetadata ? item.jobMetadata : extractJobMetadata(item.title, item.summary),
       })),
     };
   });
