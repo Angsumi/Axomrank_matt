@@ -1,6 +1,15 @@
 # AxomRank — Assam Job & Recruitment Radar
 
-A local-first, privacy-respecting intelligence dashboard tailored for **Assam government jobs, competitive exams (APSC, ADRE, SLPRB, TET, Banking), vacancy fit scoring, and application funnel tracking**.
+A cloud-ready, multi-tenant portal and intelligence dashboard tailored for **Assam government jobs, competitive exams (APSC, ADRE, SLPRB, TET, Banking), student profile deal-breaker matching, document vault, and application funnel tracking**.
+
+---
+
+## 🔗 Quick Links
+
+* 🌐 **Live Web App:** [https://axomrank.onrender.com](https://axomrank.onrender.com)
+* ⚙️ **Render Dashboard:** [https://dashboard.render.com/web/srv-dacr5k7avr4c739hbsk0](https://dashboard.render.com/web/srv-dacr5k7avr4c739hbsk0)
+* 💻 **GitHub Repository:** [https://github.com/Angsumi/Axomrank_matt](https://github.com/Angsumi/Axomrank_matt)
+* 🔥 **Firebase Console:** [https://console.firebase.google.com/project/axomrank-bf44f](https://console.firebase.google.com/project/axomrank-bf44f)
 
 ---
 
