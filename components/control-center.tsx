@@ -892,18 +892,44 @@ function IndustryView({
     "/api/live/industry?refresh=1",
   );
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"active" | "history" | "archive">("active");
+  const [view, setView] = useState<"all" | "today" | "yesterday" | "archive">("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedQualification, setSelectedQualification] = useState<string>("all");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<IndustrySortOrder>("important");
   const archive = useArchiveAction<LiveFeedResponse>("industry", mutate);
+
+  const referenceTimestamp = Date.parse(data?.checkedAt || "1970-01-01T00:00:00.000Z") || 0;
+  const isWithin24h = (publishedAt: string) => {
+    const ts = Date.parse(publishedAt);
+    if (!Number.isFinite(ts) || !referenceTimestamp) return false;
+    return referenceTimestamp - ts <= 24 * 60 * 60 * 1000;
+  };
+  const isYesterday = (publishedAt: string) => {
+    const ts = Date.parse(publishedAt);
+    if (!Number.isFinite(ts) || !referenceTimestamp) return false;
+    const diff = referenceTimestamp - ts;
+    return diff > 24 * 60 * 60 * 1000 && diff <= 48 * 60 * 60 * 1000;
+  };
+
+  const allActiveAndHistory = [
+    ...(data?.items || []),
+    ...(data?.historyItems || []).filter(
+      (h) => !(data?.items || []).some((i) => i.id === h.id || (i.url && i.url === h.url))
+    ),
+  ];
+
   const sourceItems =
     view === "archive"
       ? data?.archivedItems || []
-      : view === "history"
-        ? data?.historyItems || []
-        : data?.items || [];
+      : view === "today"
+        ? allActiveAndHistory.filter((item) => isWithin24h(item.publishedAt))
+        : view === "yesterday"
+          ? allActiveAndHistory.filter((item) => isYesterday(item.publishedAt))
+          : allActiveAndHistory;
+
+  const todayCount = allActiveAndHistory.filter((item) => isWithin24h(item.publishedAt)).length;
+  const yesterdayCount = allActiveAndHistory.filter((item) => isYesterday(item.publishedAt)).length;
 
   const filteredItems = sourceItems.filter((item) => {
     const meta = item.jobMetadata || extractJobMetadata(item.title, item.summary);
@@ -1018,22 +1044,28 @@ function IndustryView({
           <div className="toolbar reveal delay-1">
             <div className="filter-row">
               <button
-                className={view === "active" ? "active" : ""}
-                onClick={() => setView("active")}
+                className={view === "all" ? "active" : ""}
+                onClick={() => setView("all")}
               >
-                Active Vacancies {data.items.length}
+                All Vacancies ({allActiveAndHistory.length})
               </button>
               <button
-                className={view === "history" ? "active" : ""}
-                onClick={() => setView("history")}
+                className={view === "today" ? "active" : ""}
+                onClick={() => setView("today")}
               >
-                Past 24h+ {data.historyCount || 0}
+                🟢 Today ({todayCount})
+              </button>
+              <button
+                className={view === "yesterday" ? "active" : ""}
+                onClick={() => setView("yesterday")}
+              >
+                📅 Yesterday ({yesterdayCount})
               </button>
               <button
                 className={view === "archive" ? "active" : ""}
                 onClick={() => setView("archive")}
               >
-                Saved / Archived {data.archiveCount || 0}
+                📌 Saved ({data.archiveCount || 0})
               </button>
             </div>
             <div className="toolbar-actions">
@@ -1157,6 +1189,8 @@ function IndustryView({
           <div className="story-stack reveal delay-2">
             {items.map((item, index) => {
               const meta = item.jobMetadata || extractJobMetadata(item.title, item.summary);
+              const itemIsToday = isWithin24h(item.publishedAt);
+              const itemIsYesterday = isYesterday(item.publishedAt);
               return (
                 <article className="story-card" key={item.id}>
                   <div className="story-index">
@@ -1192,13 +1226,12 @@ function IndustryView({
                       {meta.qualificationTags.slice(0, 2).map((qual: string) => (
                         <Label key={qual} tone="brief">{qual}</Label>
                       ))}
-                      {meta.lastDate ? (
-                        <Label tone={meta.isUrgent ? "high" : "watch"}>
-                          ⏰ Last Date: {meta.lastDate}
-                        </Label>
-                      ) : null}
-                      {view === "history" && (
-                        <Label tone="watch">History</Label>
+                      {itemIsToday ? (
+                        <Label tone="positive">🟢 Today</Label>
+                      ) : itemIsYesterday ? (
+                        <Label tone="watch">📅 Yesterday</Label>
+                      ) : (
+                        <Label tone="brief">🏛️ Archive</Label>
                       )}
                       {view === "archive" && (
                         <Label tone="watch">Archived</Label>
@@ -1209,7 +1242,7 @@ function IndustryView({
                       {item.summary ||
                         "Open the original portal post for notification PDF and application link."}
                     </p>
-                    {item.importanceReason && view === "active" && (
+                    {item.importanceReason && view !== "archive" && (
                       <p className="importance-reason">
                         <Sparkles size={12} /> {item.importanceReason}
                       </p>
@@ -1242,7 +1275,7 @@ function IndustryView({
                       )}
                     </div>
                     <div>
-                      {view === "active" && (
+                      {view !== "archive" && (
                         <button
                           title="Save to reminders"
                           onClick={() => saveStory(item)}
@@ -1250,7 +1283,7 @@ function IndustryView({
                           <Bookmark size={16} />
                         </button>
                       )}
-                      {view === "active" ? (
+                      {view !== "archive" ? (
                         <button
                           title="Archive"
                           disabled={archive.pending === item.id}
@@ -1288,16 +1321,16 @@ function IndustryView({
                 <h2>
                   {view === "archive"
                     ? "Nothing archived yet"
-                    : view === "history"
-                      ? "Nothing in history yet"
-                      : "No current updates found"}
+                    : view === "yesterday"
+                      ? "No vacancies found from yesterday"
+                      : view === "today"
+                        ? "No new vacancies posted today yet"
+                        : "No current updates found"}
                 </h2>
                 <p>
                   {view === "archive"
                     ? "Items only appear here after you choose Archive."
-                    : view === "history"
-                      ? "Updates that left the current 24-hour window remain available here."
-                      : "No discovery cleared the current importance threshold. The broad source scan still completed and will check again automatically."}
+                    : "No vacancy matching your filters was found. The broad source scan will check again automatically."}
                 </p>
               </Panel>
             )}

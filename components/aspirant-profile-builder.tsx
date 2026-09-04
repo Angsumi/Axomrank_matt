@@ -6,20 +6,15 @@ import {
   GraduationCap,
   Bell,
   CheckCircle2,
-  AlertCircle,
   Save,
-  Send,
   Building2,
-  FileCheck,
-  User,
-  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { ASSAM_DISTRICTS } from "@/lib/assam-job-classifier";
 import type { AspirantProfile } from "@/lib/firebase/firestore-service";
 
 export function AspirantProfileBuilder({ onSaved }: { onSaved?: () => void }) {
-  const { user, profile, updateProfile, requestPushNotifications, fcmToken, isConfigured } = useAuth();
+  const { user, profile, updateProfile, requestPushNotifications, fcmToken } = useAuth();
   const [draft, setDraft] = useState<AspirantProfile>(profile);
   const [savedStatus, setSavedStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);

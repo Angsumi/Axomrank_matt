@@ -1,6 +1,6 @@
 import type { LiveStory } from "@/lib/types";
 
-export const INDUSTRY_FRESHNESS_HOURS = 24;
+export const INDUSTRY_FRESHNESS_HOURS = 720; // 30 days recruitment archive retention
 export const INDUSTRY_FUTURE_TOLERANCE_MINUTES = 10;
 
 export function isFreshTimestamp(

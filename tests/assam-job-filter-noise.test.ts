@@ -15,6 +15,8 @@ test("strictly rejects suicide, tragedy, and crime news from job feeds", () => {
     "Sikkim State Lottery Results Today - 3rd September - Lottery Sambad Live",
     "Juwai Teer Result today September 3 First and Second round number",
     "Business Loan Eligibility Criteria Every Entrepreneur Should Know",
+    "Meloni sets record as longest-serving PM in Italy’s post-war era",
+    "Trump and Zelenskyy discuss Ukraine peace roadmap in bilateral meeting",
   ];
 
   for (const headline of headlines) {
