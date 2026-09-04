@@ -15,3 +15,17 @@ services:
         value: "1"
       - key: CONTROL_CENTER_DATA_DIR
         value: "/tmp/control-center-data"
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        value: "AIzaSyBFh1K3n-gGvdCl53hzG1QdkH5QiNOCEL4"
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        value: "axomrank-bf44f.firebaseapp.com"
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        value: "axomrank-bf44f"
+      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        value: "axomrank-bf44f.firebasestorage.app"
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        value: "165830985021"
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        value: "1:165830985021:web:657ad33e1af91734feb154"
+      - key: FIREBASE_PROJECT_ID
+        value: "axomrank-bf44f"
