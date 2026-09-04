@@ -1,12 +1,21 @@
 import "server-only";
 
-const COLLECTION_INTERVAL_MS = 15 * 60 * 1000;
-const STARTUP_DELAY_MS = 5_000;
+const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 declare global {
   var controlCenterCollectorTimer: NodeJS.Timeout | undefined;
   var controlCenterCollectorStartupTimer: NodeJS.Timeout | undefined;
   var controlCenterCollectorRunning: boolean | undefined;
+}
+
+function msUntilNext1AM() {
+  const now = new Date();
+  const next1AM = new Date(now);
+  next1AM.setHours(1, 0, 0, 0);
+  if (now.getTime() >= next1AM.getTime()) {
+    next1AM.setDate(next1AM.getDate() + 1);
+  }
+  return next1AM.getTime() - now.getTime();
 }
 
 function localBaseUrl() {
@@ -20,6 +29,7 @@ async function refreshAllCollectors() {
   try {
     const baseUrl = localBaseUrl();
     await Promise.allSettled([
+      "/api/cron/sync",
       "/api/live/industry?refresh=1",
       "/api/live/mentions?refresh=1",
       "/api/live/audience",
@@ -38,11 +48,12 @@ async function refreshAllCollectors() {
 
 export function startLocalCollectorScheduler() {
   if (globalThis.controlCenterCollectorTimer || globalThis.controlCenterCollectorStartupTimer) return;
+  const delayUntil1AM = msUntilNext1AM();
   globalThis.controlCenterCollectorStartupTimer = setTimeout(() => {
     globalThis.controlCenterCollectorStartupTimer = undefined;
     void refreshAllCollectors();
-    globalThis.controlCenterCollectorTimer = setInterval(() => void refreshAllCollectors(), COLLECTION_INTERVAL_MS);
+    globalThis.controlCenterCollectorTimer = setInterval(() => void refreshAllCollectors(), DAILY_INTERVAL_MS);
     globalThis.controlCenterCollectorTimer.unref();
-  }, STARTUP_DELAY_MS);
+  }, delayUntil1AM);
   globalThis.controlCenterCollectorStartupTimer.unref();
 }

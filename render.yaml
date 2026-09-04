@@ -1,31 +1,26 @@
 services:
   - type: web
-    name: axomrank
-    runtime: node
+    name: axomrank-web
+    env: node
     plan: free
     region: singapore
     buildCommand: npm install && npm run build
-    startCommand: npm run start
+    startCommand: npm start
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
-        value: 22.14.0
-      - key: NODE_OPTIONS
-        value: "--experimental-sqlite"
-      - key: ALLOW_REMOTE_HOST
+        value: 22.12.0
+      - key: NEXT_TELEMETRY_DISABLED
         value: "1"
-      - key: CONTROL_CENTER_DATA_DIR
-        value: "/tmp/control-center-data"
-      - key: NEXT_PUBLIC_FIREBASE_API_KEY
-        value: "AIzaSyBFh1K3n-gGvdCl53hzG1QdkH5QiNOCEL4"
-      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-        value: "axomrank-bf44f.firebaseapp.com"
-      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-        value: "axomrank-bf44f"
-      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-        value: "axomrank-bf44f.firebasestorage.app"
-      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-        value: "165830985021"
-      - key: NEXT_PUBLIC_FIREBASE_APP_ID
-        value: "1:165830985021:web:657ad33e1af91734feb154"
-      - key: FIREBASE_PROJECT_ID
-        value: "axomrank-bf44f"
+
+  - type: cron
+    name: axomrank-nightly-sync
+    env: node
+    plan: free
+    region: singapore
+    schedule: "0 1 * * *"
+    buildCommand: npm install
+    startCommand: "node scripts/nightly-sync.mjs"
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
