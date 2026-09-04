@@ -35,6 +35,33 @@ You can host AxomRank completely free on [Render.com](https://render.com) with 1
 
 ---
 
+## 🏛️ Major Assam Government Recruitment Exams & Conducting Bodies
+
+The Government of Assam conducts recruitment exams through specialized boards and commissions to fill vacancies across multiple state departments:
+
+### 1. General Administration & Civil Services
+* **SLRC ADRE (Grade III):** The State Level Recruitment Commission conducts the Assam Direct Recruitment Examination for clerical and technical positions such as Junior Assistant, Computer Operator, and Field Assistant (requires 12th pass or graduation).
+* **SLRC ADRE (Grade IV):** Recruits essential support staff, including Peons, Chowkidars, and Office Assistants (requires 8th or 10th-grade qualification).
+* **APSC CCE:** The Assam Public Service Commission Combined Competitive Examination for premier Group A and B administrative roles, including the Assam Civil Service (ACS) and Assam Police Service (APS).
+* **Assam Secretariat Exams:** Specialized direct recruitment drives aimed at filling administrative postings like Junior Administrative Assistants (JAA) within Janata Bhawan.
+
+### 2. Police & Uniformed Services
+* **SLPRB Sub-Inspector (SI):** Conducted by the State Level Police Recruitment Board for graduate-level police officer postings.
+* **SLPRB Constable (AB/UB):** Large-scale recruitment drives for Armed Branch (AB) and Unarmed Branch (UB) constables.
+* **Allied SLPRB Posts:** Forest Guards, Firemen & Emergency Responders, and Assistant Jailors across related state departments.
+
+### 3. Healthcare & Education
+* **DME / DHS Staff Nurse:** The Directorate of Medical Education and Directorate of Health Services hire GNM and B.Sc Nursing qualified candidates for government medical colleges and hospitals.
+* **DME / DHS Paramedical:** Focused recruitment for Laboratory Technicians, Pharmacists, and Radiographers.
+* **Assam TET (SEBA / DEE):** Teacher Eligibility Test qualifying exam for primary (LP) and upper primary (UP) government school teachers.
+
+### 4. Specialized Boards & Departments
+* **APDCL / Power Sector Exams:** Assam Power Distribution Company Limited recruitment for Assistant Managers, Junior Managers, and Sahayaks.
+* **APSC Technical & Departmental:** Specialized recruitment for Junior Engineers (JE), Medical Officers, and Finance & Accounts Officers.
+* **Judiciary & Gauhati High Court:** Direct recruitment for LDA, Copyist, Stenographer, and Judicial Process Servers across district and high courts.
+
+---
+
 ## Local Installation and Run
 
 Requirements: [Node.js 22.14 or newer](https://nodejs.org/en/download), npm, and a modern browser.

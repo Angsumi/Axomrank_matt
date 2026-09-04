@@ -3078,14 +3078,17 @@ function SettingsView({
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {[
-                    "APSC",
-                    "ADRE / SLRC",
-                    "Assam Police / SLPRB",
-                    "Banking (SBI/IBPS/AGVB)",
-                    "Education (DEE/DHE/SSA)",
-                    "Health (DHS/DME/NHM)",
+                    "APSC CCE",
+                    "APSC (Technical/Dept)",
+                    "SLRC ADRE (Grade III/IV)",
+                    "Assam Secretariat",
+                    "Police & Uniformed (SLPRB)",
+                    "Forest & Allied (SLPRB)",
+                    "Health (DME/DHS/NHM)",
+                    "Education & TET (SEBA/DEE)",
+                    "APDCL / Power Sector",
                     "Judiciary / High Court",
-                    "APDCL / AEGCL",
+                    "Banking (SBI/IBPS/AGVB)",
                     "Oil / PSU (Assam)",
                   ].map((dept) => {
                     const isSelected = (draft.candidateProfile?.preferredDepartments || DEFAULT_CANDIDATE_PROFILE.preferredDepartments).includes(dept);

@@ -43,19 +43,19 @@ test("accurately accepts real Assam recruitment and admit card notifications", (
       summary: "State Level Police Recruitment Board (SLPRB) Assam releases official advertisement for 5562 Constable vacancies. Last date to apply is 15/10/2026.",
       expectedStage: "new-vacancy",
       expectedPosts: 5562,
-      expectedDept: "Assam Police / SLPRB",
+      expectedDept: "Police & Uniformed (SLPRB)",
     },
     {
       title: "ADRE Grade 3 Admit Card 2026 Download Link Out for Written Test",
       summary: "State Level Recruitment Commission conducts ADRE Grade 3 exam on 29th September. Download hall ticket from official portal.",
       expectedStage: "admit-card",
-      expectedDept: "ADRE / SLRC",
+      expectedDept: "SLRC ADRE (Grade III/IV)",
     },
     {
       title: "APSC CCE Preliminary Result 2026 Declared: Check Selection List",
       summary: "Assam Public Service Commission publishes merit list and cutoff marks for Combined Competitive Examination.",
       expectedStage: "result",
-      expectedDept: "APSC",
+      expectedDept: "APSC CCE",
     },
   ];
 

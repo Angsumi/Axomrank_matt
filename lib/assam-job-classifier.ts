@@ -109,19 +109,21 @@ const QUALIFICATION_PATTERNS: Array<{ regex: RegExp; tag: string }> = [
 
 // Department / Agency patterns in priority order
 const DEPARTMENT_PATTERNS: Array<{ regex: RegExp; name: string; category: JobCategory }> = [
-  { regex: /\b(?:apsc|assam\s*public\s*service\s*commission|cce)\b/i, name: "APSC", category: "state-govt" },
-  { regex: /\b(?:dhs|dme|ayush|nhm\s*assam|national\s*health\s*mission|directorate\s*of\s*health)\b/i, name: "Health (DHS/DME/NHM)", category: "health-medical" },
-  { regex: /\b(?:slprb|assam\s*police|commando|sub[\s\-]*inspector|constable|dgic|fire\s*service)\b/i, name: "Assam Police / SLPRB", category: "police-defense" },
-  { regex: /\b(?:apdcl|aegcl|apgcl|assam\s*power)\b/i, name: "APDCL / AEGCL", category: "banking-psu" },
+  { regex: /\b(?:apsc\s*cce|combined\s*competitive|assam\s*civil\s*service|acs|aps)\b/i, name: "APSC CCE", category: "state-govt" },
+  { regex: /\b(?:apsc|assam\s*public\s*service\s*commission)\b/i, name: "APSC (Technical/Dept)", category: "state-govt" },
+  { regex: /\b(?:slrc|adre|assam\s*direct\s*recruitment|grade\s*iii|grade\s*iv|junior\s*assistant|field\s*assistant|peon|chowkidar)\b/i, name: "SLRC ADRE (Grade III/IV)", category: "state-govt" },
+  { regex: /\b(?:secretariat|janata\s*bhawan|junior\s*administrative\s*assistant|jaa\s*assam)\b/i, name: "Assam Secretariat", category: "state-govt" },
+  { regex: /\b(?:dhs|dme|ayush|nhm\s*assam|national\s*health\s*mission|directorate\s*of\s*health|staff\s*nurse|paramedical|laboratory\s*technician|pharmacist|radiographer)\b/i, name: "Health (DME/DHS/NHM)", category: "health-medical" },
+  { regex: /\b(?:slprb|assam\s*police|sub[\s\-]*inspector|\bsi\b|constable|armed\s*branch|\bab\b|unarmed\s*branch|\bub\b|commando|dgic|fire\s*(?:service|man|men)|jailor|assistant\s*jailor)\b/i, name: "Police & Uniformed (SLPRB)", category: "police-defense" },
+  { regex: /\b(?:apdcl|aegcl|apgcl|assam\s*power|assistant\s*manager|junior\s*manager|sahayak)\b/i, name: "APDCL / Power Sector", category: "banking-psu" },
   { regex: /\b(?:oil\s*india|nrl|numaligarh|bcpl|ongc|iocl|bongaigaon)\b/i, name: "Oil / PSU (Assam)", category: "banking-psu" },
   { regex: /\b(?:gauhati\s*high\s*court|ghc|district\s*court|judicial|cjms|dhubri\s*court|kamrup\s*court|cachar\s*court)\b/i, name: "Judiciary / High Court", category: "judiciary" },
-  { regex: /\b(?:ssa|samagra\s*shiksha|tet|atid|education\s*department|deeg|dee\s*assam|dhe\s*assam)\b/i, name: "Education (DEE/DHE/SSA)", category: "education-tet" },
+  { regex: /\b(?:ssa|samagra\s*shiksha|tet|assam\s*tet|seba|primary\s*teacher|upper\s*primary|lp\s*school|up\s*school|education\s*department|deeg|dee\s*assam|dhe\s*assam)\b/i, name: "Education & TET (SEBA/DEE)", category: "education-tet" },
   { regex: /\b(?:sbi|ibps|rrb\s*bank|assam\s*gramin\s*vikash|agvb|apex\s*bank|cooperative\s*bank)\b/i, name: "Banking (SBI/IBPS/AGVB)", category: "banking-psu" },
-  { regex: /\b(?:adre|slrc|assam\s*direct\s*recruitment|seba)\b/i, name: "ADRE / SLRC", category: "state-govt" },
-  { regex: /\b(?:ssc|staff\s*selection|rrb\s*guwahati|railway|indian\s*army|agniveer|post\s*office|india\s*post|assam\s*rifles|crpf|bsf|cisf)\b/i, name: "Central Govt / Defense", category: "central-govt" },
-  { regex: /\b(?:forest\s*department|forest\s*guard|forester|kaziranga|manas)\b/i, name: "Environment & Forest", category: "state-govt" },
+  { regex: /\b(?:forest\s*department|forest\s*guard|forester|kaziranga|manas)\b/i, name: "Forest & Allied (SLPRB)", category: "police-defense" },
   { regex: /\b(?:pnrd|panchayat|rural\s*development|gaoburha|lot\s*mandal|revenue)\b/i, name: "P&RD / Revenue", category: "state-govt" },
   { regex: /\b(?:astc|transport|irrigation|pwd|public\s*works|water\s*resources|soil\s*conservation|sericulture|handloom)\b/i, name: "Assam State Dept", category: "state-govt" },
+  { regex: /\b(?:ssc|staff\s*selection|rrb\s*guwahati|railway|indian\s*army|agniveer|post\s*office|india\s*post|assam\s*rifles|crpf|bsf|cisf)\b/i, name: "Central Govt / Defense", category: "central-govt" },
 ];
 
 export function evaluateJobFit(

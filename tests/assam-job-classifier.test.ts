@@ -10,7 +10,7 @@ test("extracts APSC CCE new vacancy with post count and graduate qualification",
 
   assert.equal(meta.category, "state-govt");
   assert.equal(meta.stage, "new-vacancy");
-  assert.equal(meta.department, "APSC");
+  assert.equal(meta.department, "APSC CCE");
   assert.equal(meta.totalPosts, 235);
   assert.ok(meta.qualificationTags.includes("Graduate"));
   assert.equal(meta.lastDate, "25/09/2026");
@@ -25,7 +25,7 @@ test("extracts ADRE Grade 3 & Grade 4 Admit Card notice", () => {
 
   assert.equal(meta.category, "admit-card");
   assert.equal(meta.stage, "admit-card");
-  assert.equal(meta.department, "ADRE / SLRC");
+  assert.equal(meta.department, "SLRC ADRE (Grade III/IV)");
 });
 
 test("extracts Assam Police Constable with 10th/12th qualification and 5562 vacancies", () => {
@@ -35,7 +35,7 @@ test("extracts Assam Police Constable with 10th/12th qualification and 5562 vaca
   );
 
   assert.equal(meta.category, "police-defense");
-  assert.equal(meta.department, "Assam Police / SLPRB");
+  assert.equal(meta.department, "Police & Uniformed (SLPRB)");
   assert.equal(meta.totalPosts, 5562);
   assert.ok(meta.qualificationTags.includes("10th / HSLC"));
   assert.ok(meta.qualificationTags.includes("12th / HSSLC"));
@@ -50,7 +50,7 @@ test("extracts DHS Assam Result and Merit List", () => {
 
   assert.equal(meta.category, "result");
   assert.equal(meta.stage, "result");
-  assert.equal(meta.department, "Health (DHS/DME/NHM)");
+  assert.equal(meta.department, "Health (DME/DHS/NHM)");
 });
 
 test("extracts APDCL Junior Manager recruitment with engineering qualification", () => {
@@ -60,7 +60,7 @@ test("extracts APDCL Junior Manager recruitment with engineering qualification",
   );
 
   assert.equal(meta.category, "banking-psu");
-  assert.equal(meta.department, "APDCL / AEGCL");
+  assert.equal(meta.department, "APDCL / Power Sector");
   assert.equal(meta.totalPosts, 418);
   assert.ok(meta.qualificationTags.includes("B.Tech / BE") || meta.qualificationTags.includes("Diploma"));
   assert.equal(meta.lastDate, "30.09.2026");
