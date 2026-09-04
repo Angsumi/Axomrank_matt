@@ -9,7 +9,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   AtSign,
-  Bookmark,
   Cable,
   Check,
   CheckCircle2,
@@ -27,7 +26,6 @@ import {
   LayoutDashboard,
   Link2,
   Linkedin,
-  ListTodo,
   Mail,
   Menu,
   MessageSquare,
@@ -70,12 +68,7 @@ import type {
   LiveStory,
   NewsletterFeedResponse,
   PublicSettings,
-  ReminderItem,
-  ApplicationStage,
   SettingsUpdate,
-  TaskItem,
-  WorkspaceState,
-  WorkspaceStateResponse,
 } from "@/lib/types";
 import {
   GOOGLE_OAUTH_CLIENT_ID_ERROR,
@@ -99,7 +92,6 @@ import {
   DEFAULT_CANDIDATE_PROFILE,
   extractJobMetadata,
 } from "@/lib/assam-job-classifier";
-import { completeTaskItems } from "@/lib/tasks";
 import {
   applyArchiveToPayload,
   type CachedFeedPayload,
@@ -111,10 +103,8 @@ type Tab =
   | "mentions"
   | "profile"
   | "vault"
-  | "reminders"
   | "audience"
   | "newsletters"
-  | "tasks"
   | "settings";
 type SettingsSection =
   | "general"
@@ -126,8 +116,6 @@ type SettingsSection =
   | "ai"
   | "dailyBrief"
   | "integrations";
-type Reminder = ReminderItem;
-type Task = TaskItem;
 
 const emptySettings: PublicSettings = {
   general: { workspaceName: "AxomRank — Assam Job Radar" },
@@ -171,8 +159,6 @@ const nav: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "mentions", label: "Exam Radar", icon: AtSign },
   { id: "profile", label: "My Profile", icon: UserCheck },
   { id: "vault", label: "Document Vault", icon: Lock },
-  { id: "reminders", label: "Applications", icon: Bookmark },
-  { id: "tasks", label: "To-Do / Study", icon: ListTodo },
   { id: "newsletters", label: "Digests", icon: Newspaper },
 ];
 
@@ -262,33 +248,6 @@ function localDateValue(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function formatTaskDue(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const date = new Date(`${value}T12:00:00`);
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year:
-      date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
-  }).format(date);
-}
-
-function isTaskDueToday(value: string) {
-  return value === "Today" || value === localDateValue();
-}
-
-function readLegacyList<T>(key: string): T[] {
-  try {
-    const value = window.localStorage.getItem(key);
-    if (!value) return [];
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-const WORKSPACE_RECOVERY_KEY = "control-center-v3-workspace-recovery";
 const THEME_STORAGE_KEY = "control-center-theme";
 
 function toggleColorTheme() {
@@ -299,30 +258,6 @@ function toggleColorTheme() {
     window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
   } catch {
     // The selected theme still applies for this session when storage is unavailable.
-  }
-}
-
-type WorkspaceRecovery = {
-  id: string;
-  savedAt: string;
-  workspace: WorkspaceState;
-};
-
-function readWorkspaceRecovery(): WorkspaceRecovery | null {
-  try {
-    const value = window.localStorage.getItem(WORKSPACE_RECOVERY_KEY);
-    if (!value) return null;
-    const parsed = JSON.parse(value) as Partial<WorkspaceRecovery>;
-    if (
-      typeof parsed.id !== "string" ||
-      typeof parsed.savedAt !== "string" ||
-      !parsed.workspace ||
-      !Array.isArray(parsed.workspace.reminders) ||
-      !Array.isArray(parsed.workspace.tasks)
-    ) return null;
-    return parsed as WorkspaceRecovery;
-  } catch {
-    return null;
   }
 }
 
@@ -505,12 +440,10 @@ function briefDueLabel(value?: string) {
 function DailyBriefPanel({
   settings,
   openSettings,
-  addTask,
   goTo,
 }: {
   settings: PublicSettings;
   openSettings: (section?: SettingsSection) => void;
-  addTask: (item: DailyBriefItem) => void;
   goTo: (tab: Tab) => void;
 }) {
   const { data, loading, error, refresh } = useLiveData<DailyBriefResponse>(
@@ -580,9 +513,7 @@ function DailyBriefPanel({
             <b>Daily Brief could not be read</b>
             <p>{error}</p>
           </div>
-          <button className="button button-primary" onClick={refresh}>
-            Retry
-          </button>
+          <button className="button button-primary" onClick={refresh}>Try again</button>
         </div>
       ) : loading && !data ? (
         <div className="brief-setup-state">
@@ -592,39 +523,11 @@ function DailyBriefPanel({
             <p>This should only take a moment.</p>
           </div>
         </div>
-      ) : items.length ? (
-        <div className="daily-brief-grid">
-          {items.slice(0, 8).map((item) => (
-            <article className="daily-brief-item" key={`${item.source}:${item.id}`}>
-              <div className="brief-item-meta">
-                <Label tone={item.kind === "action" ? "high" : "brief"}>
-                  {item.kind}
-                </Label>
-                <span>{item.source}</span>
-                <span>
-                  <Clock3 size={11} /> {briefDueLabel(item.dueAt)}
-                </span>
-              </div>
-              <h3>{item.title}</h3>
-              {item.summary && <p>{item.summary}</p>}
-              <div className="brief-item-actions">
-                <button onClick={() => addTask(item)}>
-                  <ListTodo size={13} /> Add task
-                </button>
-                {item.url && (
-                  <a href={item.url} target="_blank" rel="noreferrer">
-                    Open source <ArrowUpRight size={13} />
-                  </a>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
+      ) : !items.length ? (
         <div className="brief-setup-state">
-          <MessageSquare size={24} />
+          <Inbox size={24} />
           <div>
-            <b>Waiting for the first connector sync</b>
+            <b>No private brief items {window === "today" ? "today" : "this week"}</b>
             <p>
               {connected
                 ? `${connected} source${connected === 1 ? " has" : "s have"} synced, with no items in this window.`
@@ -637,6 +540,18 @@ function DailyBriefPanel({
           >
             Bridge setup
           </button>
+        </div>
+      ) : (
+        <div className="brief-item-list">
+          {items.map((item) => (
+            <div className="brief-item" key={item.id}>
+              <div className="brief-item-copy">
+                <b>{item.title}</b>
+                <p>{item.summary}</p>
+                <small>{item.source} · {formatDate(item.occurredAt)}</small>
+              </div>
+            </div>
+          ))}
         </div>
       )}
       {!!data?.sourceStatuses.length && (
@@ -674,18 +589,13 @@ function newsletterSetupReady(settings: PublicSettings) {
 
 function TodayView({
   settings,
-  tasks,
   goTo,
   openSettings,
-  addBriefTask,
 }: {
   settings: PublicSettings;
-  tasks: Task[];
   goTo: (tab: Tab) => void;
   openSettings: (section?: SettingsSection) => void;
-  addBriefTask: (item: DailyBriefItem) => void;
 }) {
-  const openTasks = tasks.filter((task) => !task.done).slice(0, 3);
   const industryConfigured =
     settings.industry.sources.length + settings.industry.keywords.length > 0;
   const configured = [
@@ -739,48 +649,62 @@ function TodayView({
       <DailyBriefPanel
         settings={settings}
         openSettings={openSettings}
-        addTask={addBriefTask}
         goTo={goTo}
       />
       <div className="today-grid reveal delay-2">
         <Panel className="priority-panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Focus</p>
-              <h2>Open tasks</h2>
+              <p className="eyebrow">Assam Career Hub</p>
+              <h2>Core Services</h2>
             </div>
-            <span className="progress-count">
-              {tasks.filter((task) => !task.done).length}
-            </span>
           </div>
-          {openTasks.length ? (
-            <div className="priority-list">
-              {openTasks.map((task, index) => (
-                <button
-                  key={task.id}
-                  className="priority-row"
-                  onClick={() => goTo("tasks")}
-                >
-                  <span className="check-box">{index + 1}</span>
-                  <span>
-                    <b>{task.title}</b>
-                    <small>
-                      {formatTaskDue(task.due)} · {task.recurrence}
-                    </small>
-                  </span>
-                  <ArrowRight size={16} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="inline-empty">
-              <ListTodo size={20} />
-              <p>No open tasks yet.</p>
-            </div>
-          )}
-          <button className="text-button" onClick={() => goTo("tasks")}>
-            Open task list <ArrowRight size={14} />
-          </button>
+          <div className="priority-list">
+            <button
+              className="priority-row"
+              onClick={() => goTo("industry")}
+            >
+              <span className="check-box">📡</span>
+              <span>
+                <b>Job Feeds & Vacancies</b>
+                <small>Live notifications & eligibility match</small>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+            <button
+              className="priority-row"
+              onClick={() => goTo("mentions")}
+            >
+              <span className="check-box">🏛️</span>
+              <span>
+                <b>Exam & Department Radar</b>
+                <small>APSC, ADRE, Police & Board updates</small>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+            <button
+              className="priority-row"
+              onClick={() => goTo("profile")}
+            >
+              <span className="check-box">👤</span>
+              <span>
+                <b>My Aspirant Profile</b>
+                <small>Education, category & preferences</small>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+            <button
+              className="priority-row"
+              onClick={() => goTo("vault")}
+            >
+              <span className="check-box">🔒</span>
+              <span>
+                <b>Document Vault</b>
+                <small>PRC, certificates & scorecards</small>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
         </Panel>
         <Panel className="setup-progress">
           <div className="panel-header">
@@ -886,10 +810,8 @@ function TodayView({
 }
 
 function IndustryView({
-  saveStory,
   openSettings,
 }: {
-  saveStory: (story: LiveStory) => void;
   openSettings: () => void;
 }) {
   const { data, loading, error, refresh, mutate } = useLiveData<LiveFeedResponse>(
@@ -1351,14 +1273,6 @@ function IndustryView({
                       )}
                     </div>
                     <div>
-                      {view !== "archive" && (
-                        <button
-                          title="Save to reminders"
-                          onClick={() => saveStory(item)}
-                        >
-                          <Bookmark size={16} />
-                        </button>
-                      )}
                       {view !== "archive" ? (
                         <button
                           title="Archive"
@@ -1418,10 +1332,8 @@ function IndustryView({
 }
 
 function MentionsView({
-  saveStory,
   openSettings,
 }: {
-  saveStory: (story: LiveStory) => void;
   openSettings: () => void;
 }) {
   const { data, loading, error, refresh, mutate } = useLiveData<LiveFeedResponse>(
@@ -1585,14 +1497,6 @@ function MentionsView({
                   </div>
                 </div>
                 <div className="mention-actions">
-                  {view === "active" && (
-                    <button
-                      title="Save to reminders"
-                      onClick={() => saveStory(item)}
-                    >
-                      <Bookmark size={16} />
-                    </button>
-                  )}
                   <a
                     className="round-link"
                     href={item.url}
@@ -1640,430 +1544,6 @@ function MentionsView({
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function RemindersView({
-  reminders,
-  addReminder,
-  updateReminder,
-  archiveReminder,
-}: {
-  reminders: Reminder[];
-  addReminder: (
-    title: string,
-    note: string,
-    url?: string,
-    meta?: Partial<ReminderItem>,
-  ) => void;
-  updateReminder: (id: string | number, patch: Partial<ReminderItem>) => void;
-  archiveReminder: (id: string | number, archived: boolean) => void;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-  const [url, setUrl] = useState("");
-  const [dept, setDept] = useState("");
-  const [stage, setStage] = useState<ApplicationStage>("saved");
-  const [regNo, setRegNo] = useState("");
-  const [view, setView] = useState<"active" | "archive">("active");
-  const [filterStage, setFilterStage] = useState<string>("all");
-  const [editingId, setEditingId] = useState<string | number | null>(null);
-  const [editStage, setEditStage] = useState<ApplicationStage>("saved");
-  const [editRegNo, setEditRegNo] = useState("");
-  const [editRollNo, setEditRollNo] = useState("");
-  const [editExamDate, setEditExamDate] = useState("");
-
-  const STAGE_CONFIG: Record<
-    ApplicationStage,
-    { label: string; tone: "brief" | "watch" | "positive" | "verified" | "high" }
-  > = {
-    saved: { label: "📌 Saved", tone: "brief" },
-    applied: { label: "📝 Applied", tone: "watch" },
-    "admit-card": { label: "🎫 Admit Card", tone: "verified" },
-    "exam-done": { label: "✍️ Exam Done", tone: "brief" },
-    result: { label: "🏆 Result / Selected", tone: "positive" },
-  };
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!title.trim()) return;
-    addReminder(
-      title.trim(),
-      note.trim(),
-      url.trim() || (title.startsWith("http") ? title : undefined),
-      {
-        applicationStage: stage,
-        department: dept.trim() || undefined,
-        registrationNumber: regNo.trim() || undefined,
-      },
-    );
-    setTitle("");
-    setNote("");
-    setUrl("");
-    setDept("");
-    setRegNo("");
-    setShowForm(false);
-  };
-
-  const saveEdit = (id: string | number) => {
-    updateReminder(id, {
-      applicationStage: editStage,
-      registrationNumber: editRegNo.trim() || undefined,
-      rollNumber: editRollNo.trim() || undefined,
-      examDate: editExamDate.trim() || undefined,
-    });
-    setEditingId(null);
-  };
-
-  const active = reminders
-    .filter((item) => !item.archivedAt)
-    .sort(
-      (left, right) =>
-        Date.parse(right.createdAt || "") - Date.parse(left.createdAt || ""),
-    );
-
-  const archived = reminders
-    .filter((item) => item.archivedAt)
-    .sort(
-      (left, right) =>
-        Date.parse(right.archivedAt || "") - Date.parse(left.archivedAt || ""),
-    );
-
-  const baseItems = view === "archive" ? archived : active;
-  const items =
-    view === "archive" || filterStage === "all"
-      ? baseItems
-      : baseItems.filter((item) => (item.applicationStage || "saved") === filterStage);
-
-  return (
-    <div className="view">
-      <PageHeading
-        eyebrow="Government Job Pipeline"
-        title="Application Funnel"
-        description="Track your exam applications across every stage: Saved, Applied, Admit Card, Exam, and Results."
-        action={
-          <button
-            className="button button-primary"
-            onClick={() => {
-              setView("active");
-              setShowForm(true);
-            }}
-          >
-            <Plus size={16} /> Track New Job
-          </button>
-        }
-      />
-      {showForm && (
-        <form className="quick-form reveal" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <div className="form-icon">
-              <Link2 size={20} />
-            </div>
-            <label style={{ flex: 1 }}>
-              <span>Job / Recruitment Title</span>
-              <input
-                autoFocus
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. APSC CCE 2026 or Assam Police Constable"
-                required
-              />
-            </label>
-            <label style={{ width: "170px" }}>
-              <span>Initial Stage</span>
-              <select
-                value={stage}
-                onChange={(e) => setStage(e.target.value as ApplicationStage)}
-                style={{ padding: "8px", borderRadius: "6px", width: "100%", background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
-              >
-                <option value="saved">📌 Saved</option>
-                <option value="applied">📝 Applied</option>
-                <option value="admit-card">🎫 Admit Card Ready</option>
-                <option value="exam-done">✍️ Exam Attended</option>
-                <option value="result">🏆 Result / Selected</option>
-              </select>
-            </label>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
-            <label>
-              <span>Application / Registration No. (Optional)</span>
-              <input
-                value={regNo}
-                onChange={(event) => setRegNo(event.target.value)}
-                placeholder="e.g. APSC/2026/89421"
-              />
-            </label>
-            <label>
-              <span>Recruitment Agency / Dept</span>
-              <input
-                value={dept}
-                onChange={(event) => setDept(event.target.value)}
-                placeholder="e.g. APSC, SLPRB, ADRE"
-              />
-            </label>
-            <label>
-              <span>Official Link / Portal URL</span>
-              <input
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://apsc.nic.in"
-              />
-            </label>
-          </div>
-
-          <label>
-            <span>Notes / Syllabus / Exam Pattern</span>
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Important notes, centers, or next revision dates..."
-            />
-          </label>
-
-          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => setShowForm(false)}
-            >
-              <X size={16} /> Cancel
-            </button>
-            <button className="button button-primary">Save to Tracker</button>
-          </div>
-        </form>
-      )}
-
-      <div className="shelf-controls reveal delay-1" style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
-          <div className="filter-row">
-            <button
-              className={view === "active" ? "active" : ""}
-              onClick={() => setView("active")}
-            >
-              Active Pipeline {active.length}
-            </button>
-            <button
-              className={view === "archive" ? "active" : ""}
-              onClick={() => setView("archive")}
-            >
-              Archive {archived.length}
-            </button>
-          </div>
-          <span className="sort-label">
-            <ChevronDown size={15} /> Newest first
-          </span>
-        </div>
-
-        {view === "active" && (
-          <div className="filter-row" style={{ flexWrap: "wrap", gap: "6px" }}>
-            <button
-              type="button"
-              className={filterStage === "all" ? "active" : ""}
-              onClick={() => setFilterStage("all")}
-              style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
-            >
-              All Stages ({active.length})
-            </button>
-            {(["saved", "applied", "admit-card", "exam-done", "result"] as ApplicationStage[]).map((stg) => {
-              const count = active.filter((i) => (i.applicationStage || "saved") === stg).length;
-              return (
-                <button
-                  key={stg}
-                  type="button"
-                  className={filterStage === stg ? "active" : ""}
-                  onClick={() => setFilterStage(stg)}
-                  style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "14px" }}
-                >
-                  {STAGE_CONFIG[stg].label} ({count})
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="reminder-grid reveal delay-2">
-        {items.map((item) => {
-          const currentStage = (item.applicationStage || "saved") as ApplicationStage;
-          const stageBadge = STAGE_CONFIG[currentStage] || STAGE_CONFIG.saved;
-          const isEditing = editingId === item.id;
-
-          return (
-            <article
-              className={`reminder-card accent-${item.accent}`}
-              key={item.id}
-              style={{ position: "relative" }}
-            >
-              <div className="reminder-top" style={{ flexWrap: "wrap", gap: "6px" }}>
-                <Label tone={stageBadge.tone}>{stageBadge.label}</Label>
-                {item.department ? (
-                  <Label tone="brief">{item.department}</Label>
-                ) : null}
-                {item.totalPosts ? (
-                  <Label tone="positive">🏷️ {item.totalPosts.toLocaleString()} Posts</Label>
-                ) : null}
-                {item.lastDate ? (
-                  <Label tone="watch">⏰ {item.lastDate}</Label>
-                ) : null}
-                <button
-                  title={
-                    view === "archive" ? "Restore application" : "Archive application"
-                  }
-                  onClick={() => archiveReminder(item.id, view === "active")}
-                  style={{ marginLeft: "auto" }}
-                >
-                  {view === "archive" ? (
-                    <ArchiveRestore size={15} />
-                  ) : (
-                    <Archive size={15} />
-                  )}
-                </button>
-              </div>
-
-              <h2>{item.title}</h2>
-              {item.note && <p>{item.note}</p>}
-
-              {/* Application Details Strip */}
-              {(item.registrationNumber || item.rollNumber || item.examDate) && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", margin: "8px 0", fontSize: "11px" }}>
-                  {item.registrationNumber && (
-                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
-                      Reg: <strong>{item.registrationNumber}</strong>
-                    </span>
-                  )}
-                  {item.rollNumber && (
-                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
-                      Roll: <strong>{item.rollNumber}</strong>
-                    </span>
-                  )}
-                  {item.examDate && (
-                    <span style={{ background: "var(--bg-subtle)", padding: "3px 7px", borderRadius: "4px", border: "1px solid var(--border)" }}>
-                      📅 Exam: <strong>{item.examDate}</strong>
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Status Update Inline Drawer */}
-              {isEditing ? (
-                <div style={{ marginTop: "10px", padding: "10px", background: "var(--bg-subtle)", borderRadius: "8px", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <label style={{ fontSize: "11px" }}>
-                    <span>Stage</span>
-                    <select
-                      value={editStage}
-                      onChange={(e) => setEditStage(e.target.value as ApplicationStage)}
-                      style={{ padding: "5px", borderRadius: "4px", width: "100%", marginTop: "2px" }}
-                    >
-                      <option value="saved">📌 Saved</option>
-                      <option value="applied">📝 Applied</option>
-                      <option value="admit-card">🎫 Admit Card Ready</option>
-                      <option value="exam-done">✍️ Exam Done</option>
-                      <option value="result">🏆 Result / Selected</option>
-                    </select>
-                  </label>
-                  <label style={{ fontSize: "11px" }}>
-                    <span>Application / Reg No.</span>
-                    <input
-                      value={editRegNo}
-                      onChange={(e) => setEditRegNo(e.target.value)}
-                      placeholder="e.g. 2026/0491"
-                      style={{ padding: "4px", width: "100%" }}
-                    />
-                  </label>
-                  <label style={{ fontSize: "11px" }}>
-                    <span>Roll No.</span>
-                    <input
-                      value={editRollNo}
-                      onChange={(e) => setEditRollNo(e.target.value)}
-                      placeholder="e.g. 1094821"
-                      style={{ padding: "4px", width: "100%" }}
-                    />
-                  </label>
-                  <label style={{ fontSize: "11px" }}>
-                    <span>Exam Date</span>
-                    <input
-                      value={editExamDate}
-                      onChange={(e) => setEditExamDate(e.target.value)}
-                      placeholder="e.g. 15 Oct 2026"
-                      style={{ padding: "4px", width: "100%" }}
-                    />
-                  </label>
-                  <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", marginTop: "4px" }}>
-                    <button
-                      type="button"
-                      className="button button-ghost"
-                      style={{ fontSize: "11px", padding: "3px 8px" }}
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      style={{ fontSize: "11px", padding: "3px 8px" }}
-                      onClick={() => saveEdit(item.id)}
-                    >
-                      Save Status
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="reminder-bottom" style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>
-                  {item.source} ·{" "}
-                  {item.createdAt
-                    ? formatDate(item.createdAt)
-                    : item.added || "Saved previously"}
-                </span>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  {!isEditing && (
-                    <button
-                      className="button button-ghost"
-                      style={{ fontSize: "11px", padding: "2px 7px" }}
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setEditStage((item.applicationStage || "saved") as ApplicationStage);
-                        setEditRegNo(item.registrationNumber || "");
-                        setEditRollNo(item.rollNumber || "");
-                        setEditExamDate(item.examDate || "");
-                      }}
-                    >
-                      ✏️ Advance / Edit
-                    </button>
-                  )}
-                  {item.url && (
-                    <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                      Open <ArrowUpRight size={13} />
-                    </a>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
-        {view === "active" && (
-          <button className="add-card" onClick={() => setShowForm(true)}>
-            <Plus />
-            <span>
-              {reminders.length ? "Track Another Job" : "Your pipeline is empty"}
-            </span>
-            <small>Save from feed or paste job link directly</small>
-          </button>
-        )}
-        {view === "archive" && !items.length && (
-          <Panel className="empty-state">
-            <Archive size={24} />
-            <h2>No archived applications</h2>
-            <p>
-              Completed and closed job applications stay available here.
-            </p>
-          </Panel>
-        )}
-      </div>
     </div>
   );
 }
@@ -2220,11 +1700,9 @@ function AudienceView({ openSettings }: { openSettings: () => void }) {
 }
 
 function NewslettersView({
-  addReminder,
   openSettings,
   openAiSettings,
 }: {
-  addReminder: (title: string, note: string, url?: string) => void;
   openSettings: () => void;
   openAiSettings: () => void;
 }) {
@@ -2404,19 +1882,6 @@ function NewslettersView({
                       : ""}
                   </div>
                   <div className="newsletter-foot">
-                    {view !== "archive" && (
-                      <button
-                        onClick={() =>
-                          addReminder(
-                            item.title,
-                            item.summary,
-                            item.url,
-                          )
-                        }
-                      >
-                        <Bookmark size={14} /> Remind me
-                      </button>
-                    )}
                     <a href={item.url} target="_blank" rel="noreferrer">
                       <ExternalLink size={14} /> Open source
                     </a>
@@ -2463,246 +1928,6 @@ function NewslettersView({
             )}
           </div>
         </>
-      )}
-    </div>
-  );
-}
-
-function TasksView({
-  tasks,
-  setTasks,
-}: {
-  tasks: Task[];
-  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [due, setDue] = useState(localDateValue);
-  const [recurrence, setRecurrence] = useState("One-time");
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!title.trim() || !due) return;
-    setTasks((values) => [
-      {
-        id: crypto.randomUUID(),
-        title: title.trim(),
-        description: description.trim() || "No additional details.",
-        due,
-        recurrence,
-        priority: "Normal",
-        done: false,
-        createdAt: new Date().toISOString(),
-      },
-      ...values,
-    ]);
-    setTitle("");
-    setDescription("");
-    setDue(localDateValue());
-    setRecurrence("One-time");
-    setShowForm(false);
-  };
-  const complete = (task: Task) =>
-    setTasks((values) =>
-      completeTaskItems(values, task.id, { expectedDue: task.due }),
-    );
-  const open = tasks.filter((task) => !task.done);
-  const completed = tasks
-    .filter((task) => task.done)
-    .sort((a, b) =>
-      (b.completedAt || b.createdAt || "").localeCompare(
-        a.completedAt || a.createdAt || "",
-      ),
-    );
-  const completedToday = completed.filter(
-    (task) =>
-      task.completedAt &&
-      localDateValue(new Date(task.completedAt)) === localDateValue(),
-  );
-  const dueToday = open.filter((task) => isTaskDueToday(task.due));
-  const todayTotal = dueToday.length + completedToday.length;
-  return (
-    <div className="view">
-      <PageHeading
-        eyebrow="Execution"
-        title="Tasks"
-        description="One-time and repeating work, with enough detail to make the next action obvious."
-        action={
-          <button
-            className="button button-primary"
-            onClick={() => setShowForm(true)}
-          >
-            <Plus size={16} /> Add task
-          </button>
-        }
-      />
-      {showForm && (
-        <form className="task-form reveal" onSubmit={submit}>
-          <div>
-            <p className="eyebrow">New task</p>
-            <input
-              autoFocus
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="What needs to get done?"
-            />
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Add a description (optional)"
-            />
-          </div>
-          <div className="task-fields">
-            <label>
-              Due
-              <input
-                type="date"
-                required
-                value={due}
-                onChange={(event) => setDue(event.target.value)}
-              />
-            </label>
-            <label>
-              Repeats
-              <select
-                value={recurrence}
-                onChange={(event) => setRecurrence(event.target.value)}
-              >
-                <option>One-time</option>
-                <option>Daily</option>
-                <option>Weekly</option>
-                <option>Monthly</option>
-              </select>
-            </label>
-          </div>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="button button-ghost"
-              onClick={() => setShowForm(false)}
-            >
-              Cancel
-            </button>
-            <button className="button button-primary">Add task</button>
-          </div>
-        </form>
-      )}
-      <div className="task-summary reveal delay-1">
-        <div>
-          <b>{open.length}</b>
-          <span>open tasks</span>
-        </div>
-        <div>
-          <b>{dueToday.length}</b>
-          <span>due today</span>
-        </div>
-        <div>
-          <b>
-            {
-              tasks.filter(
-                (task) => task.recurrence !== "One-time" && !task.done,
-              ).length
-            }
-          </b>
-          <span>repeating</span>
-        </div>
-        <div className="task-progress">
-          <span>
-            <i
-              style={{
-                width: `${todayTotal ? (completedToday.length / todayTotal) * 100 : 0}%`,
-              }}
-            />
-          </span>
-          <small>{completedToday.length} completed today</small>
-        </div>
-      </div>
-      {open.length ? (
-        <div className="task-list reveal delay-2">
-          <div className="task-list-head">
-            <span>Task</span>
-            <span>Due</span>
-            <span>Repeats</span>
-            <span />
-          </div>
-          {open.map((task) => (
-            <div className="task-row" key={task.id}>
-              <button
-                className="round-check"
-                aria-label={
-                  task.recurrence === "One-time"
-                    ? `Complete ${task.title}`
-                    : `Complete and reschedule ${task.title}`
-                }
-                onClick={() => complete(task)}
-              >
-                <Check size={14} />
-              </button>
-              <div className="task-copy">
-                <b>{task.title}</b>
-                <p>{task.description}</p>
-              </div>
-              <Label tone={isTaskDueToday(task.due) ? "high" : undefined}>
-                {formatTaskDue(task.due)}
-              </Label>
-              <span className="repeat-text">
-                <RefreshCw size={13} />
-                {task.recurrence}
-              </span>
-              <button
-                className="more-button"
-                aria-label={`Delete ${task.title}`}
-                title="Delete task"
-                onClick={() =>
-                  setTasks((values) =>
-                    values.filter((value) => value.id !== task.id),
-                  )
-                }
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <Panel className="empty-state">
-          <ListTodo size={26} />
-          <h2>No open tasks</h2>
-          <p>Add the first task when there is something worth committing to.</p>
-        </Panel>
-      )}
-      {completed.length > 0 && (
-        <details className="completed-list">
-          <summary>{completed.length} completed</summary>
-          {completed.map((task) => (
-            <div className="completed-row" key={task.id}>
-              <CheckCircle2 size={16} />
-              <div className="completed-copy">
-                <s>{task.title}</s>
-                <small>
-                  {task.completedAt
-                    ? `Completed ${formatDate(task.completedAt)}`
-                    : "Completed"}
-                  {` · was due ${formatTaskDue(task.due)}`}
-                  {task.seriesId !== undefined ? " · recurring occurrence" : ""}
-                </small>
-              </div>
-              {task.seriesId === undefined && (
-                <button
-                  aria-label={`Delete completed ${task.title}`}
-                  title="Delete completed task"
-                  onClick={() =>
-                    setTasks((values) =>
-                      values.filter((value) => value.id !== task.id),
-                    )
-                  }
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-        </details>
       )}
     </div>
   );
@@ -4174,17 +3399,12 @@ function ControlCenterApp() {
   const [activeTab, setActiveTab] = useState<Tab>("today");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settings, setSettings] = useState<PublicSettings>(emptySettings);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [toast, setToast] = useState("");
-  const [workspaceReady, setWorkspaceReady] = useState(false);
   const [bootstrapStatus, setBootstrapStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
   const [bootstrapError, setBootstrapError] = useState("");
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
-  const [workspaceSaveError, setWorkspaceSaveError] = useState("");
-  const workspaceSaveQueue = useRef(Promise.resolve());
 
   const effectiveSettings = useMemo<PublicSettings>(() => {
     if (aspirantProfile && aspirantProfile.education) {
@@ -4216,58 +3436,21 @@ function ControlCenterApp() {
     });
     const load = async () => {
       try {
-        const [settingsResponse, workspaceResponse] = await Promise.all([
-          fetch("/api/settings", { cache: "no-store" }),
-          fetch("/api/workspace", { cache: "no-store" }),
-        ]);
+        const settingsResponse = await fetch("/api/settings", { cache: "no-store" });
         if (!settingsResponse.ok)
           throw new Error(
             "Settings could not be read. Your saved configuration was not changed.",
           );
-        if (!workspaceResponse.ok)
-          throw new Error(
-            "Tasks and reminders could not be read. Your saved workspace was not changed.",
-          );
-        const [loadedSettings, saved] = await Promise.all([
-          settingsResponse.json() as Promise<PublicSettings>,
-          workspaceResponse.json() as Promise<WorkspaceStateResponse>,
-        ]);
-        const recovery = readWorkspaceRecovery();
-        const legacy: WorkspaceState = saved.legacyBrowserImportAllowed
-          ? {
-              reminders: readLegacyList<Reminder>("control-center-v2-reminders"),
-              tasks: readLegacyList<Task>("control-center-v2-tasks"),
-            }
-          : { reminders: [], tasks: [] };
-        let nextWorkspace: WorkspaceState = saved.initialized
-          ? { reminders: saved.reminders, tasks: saved.tasks }
-          : legacy;
-        const canRecover = saved.initialized || saved.legacyBrowserImportAllowed;
-        if (recovery && canRecover) nextWorkspace = recovery.workspace;
-        if (!saved.initialized || (recovery && canRecover)) {
-          const importResponse = await fetch("/api/workspace", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(nextWorkspace),
-          });
-          if (!importResponse.ok)
-            throw new Error(
-              "The first-run workspace could not be initialized. No local data was replaced.",
-            );
-          nextWorkspace = (await importResponse.json()) as WorkspaceState;
-        }
+        const loadedSettings = (await settingsResponse.json()) as PublicSettings;
         if (cancelled) return;
         setSettings(loadedSettings);
-        setReminders(nextWorkspace.reminders);
-        setTasks(nextWorkspace.tasks);
-        setWorkspaceReady(true);
         setBootstrapStatus("ready");
       } catch (error) {
         if (cancelled) return;
         setBootstrapError(
           error instanceof Error
             ? error.message
-            : "Control Center could not read its local data.",
+            : "Control Center could not read its settings.",
         );
         setBootstrapStatus("error");
       }
@@ -4277,58 +3460,7 @@ function ControlCenterApp() {
       cancelled = true;
     };
   }, [bootstrapAttempt]);
-  useEffect(() => {
-    if (!workspaceReady) return;
-    const workspace = { reminders, tasks } satisfies WorkspaceState;
-    const recovery: WorkspaceRecovery = {
-      id: crypto.randomUUID(),
-      savedAt: new Date().toISOString(),
-      workspace,
-    };
-    try {
-      window.localStorage.setItem(
-        "control-center-v2-reminders",
-        JSON.stringify(reminders),
-      );
-      window.localStorage.setItem(
-        "control-center-v2-tasks",
-        JSON.stringify(tasks),
-      );
-      window.localStorage.setItem(
-        WORKSPACE_RECOVERY_KEY,
-        JSON.stringify(recovery),
-      );
-    } catch {
-      // The immediate SQLite write below remains canonical when browser storage is unavailable.
-    }
-    const save = async () => {
-      const response = await fetch("/api/workspace", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(workspace),
-      });
-      if (!response.ok)
-        throw new Error(
-          "Tasks and reminders could not be saved to SQLite. Keep this page open and retry.",
-        );
-      try {
-        if (readWorkspaceRecovery()?.id === recovery.id)
-          window.localStorage.removeItem(WORKSPACE_RECOVERY_KEY);
-      } catch {
-        // A saved SQLite workspace does not depend on clearing the recovery copy.
-      }
-      setWorkspaceSaveError("");
-    };
-    workspaceSaveQueue.current = workspaceSaveQueue.current
-      .then(save, save)
-      .catch((error) => {
-        setWorkspaceSaveError(
-          error instanceof Error
-            ? error.message
-            : "Tasks and reminders could not be saved.",
-        );
-      });
-  }, [reminders, tasks, workspaceReady]);
+
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2600);
@@ -4343,71 +3475,6 @@ function ControlCenterApp() {
     if (tab !== "settings") url.searchParams.delete("section");
     window.history.replaceState({}, "", url);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const addReminder = (
-    title: string,
-    note: string,
-    url?: string,
-    meta?: Partial<ReminderItem>,
-  ) => {
-    let source = "Manual";
-    if (url) {
-      try {
-        source = new URL(url).hostname.replace("www.", "");
-      } catch {
-        source = "Saved link";
-      }
-    }
-    setReminders((values) => [
-      {
-        id: crypto.randomUUID(),
-        type: url ? "Job" : "Saved",
-        title,
-        source,
-        createdAt: new Date().toISOString(),
-        note: note || "Tracked job application.",
-        accent: "teal",
-        url,
-        applicationStage: meta?.applicationStage || "saved",
-        department: meta?.department,
-        totalPosts: meta?.totalPosts,
-        lastDate: meta?.lastDate,
-        ...meta,
-      },
-      ...values,
-    ]);
-    setToast("Saved to Applications");
-  };
-  const updateReminder = (id: string | number, patch: Partial<ReminderItem>) => {
-    setReminders((values) =>
-      values.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    );
-    setToast("Application updated");
-  };
-  const addBriefTask = (item: DailyBriefItem) => {
-    const id = `brief:${item.id}`;
-    if (tasks.some((task) => task.id === id)) {
-      setToast("That brief item is already in tasks");
-      return;
-    }
-    setTasks((values) => [
-      {
-        id,
-        title: item.title,
-        description:
-          [item.source, item.summary, item.url].filter(Boolean).join(" · ") ||
-          "Added from Daily Brief.",
-        due: item.dueAt
-          ? localDateValue(new Date(item.dueAt))
-          : localDateValue(),
-        recurrence: "One-time",
-        priority: item.kind === "action" ? "High" : "Normal",
-        done: false,
-        createdAt: new Date().toISOString(),
-      },
-      ...values,
-    ]);
-    setToast("Added to tasks");
   };
   const openSettings = (section?: SettingsSection) => {
     const url = new URL(window.location.href);
@@ -4448,7 +3515,7 @@ function ControlCenterApp() {
           <h1>Control Center could not open safely</h1>
           <p>{bootstrapError}</p>
           <p>
-            No settings, tasks, or reminders were overwritten. Retry the read,
+            No settings were overwritten. Retry the read,
             or run <code>npm run doctor</code> in the app folder for a local
             diagnostic.
           </p>
@@ -4457,7 +3524,6 @@ function ControlCenterApp() {
             onClick={() => {
               setBootstrapStatus("loading");
               setBootstrapError("");
-              setWorkspaceReady(false);
               setBootstrapAttempt((value) => value + 1);
             }}
           >
@@ -4536,66 +3602,21 @@ function ControlCenterApp() {
         </div>
       </header>
       <main key={activeTab}>
-        {workspaceSaveError && (
-          <div className="workspace-save-error" role="alert">
-            <CircleAlert size={16} />
-            <span>{workspaceSaveError}</span>
-          </div>
-        )}
         {activeTab === "today" && (
           <TodayView
             settings={effectiveSettings}
-            tasks={tasks}
             goTo={goTo}
             openSettings={openSettings}
-            addBriefTask={addBriefTask}
           />
         )}{" "}
         {activeTab === "industry" && (
           <IndustryView
-            saveStory={(story) =>
-              addReminder(story.title, story.summary, story.url, {
-                department: story.jobMetadata?.department,
-                totalPosts: story.jobMetadata?.totalPosts,
-                lastDate: story.jobMetadata?.lastDate,
-                applicationStage: "saved",
-              })
-            }
             openSettings={() => openSettings("industry")}
           />
         )}{" "}
         {activeTab === "mentions" && (
           <MentionsView
-            saveStory={(story) =>
-              addReminder(story.title, story.summary, story.url, {
-                department: story.jobMetadata?.department,
-                totalPosts: story.jobMetadata?.totalPosts,
-                lastDate: story.jobMetadata?.lastDate,
-                applicationStage: "saved",
-              })
-            }
             openSettings={() => openSettings("mentions")}
-          />
-        )}{" "}
-        {activeTab === "reminders" && (
-          <RemindersView
-            reminders={reminders}
-            addReminder={addReminder}
-            updateReminder={updateReminder}
-            archiveReminder={(id, archived) =>
-              setReminders((values) =>
-                values.map((item) =>
-                  item.id === id
-                    ? {
-                        ...item,
-                        archivedAt: archived
-                          ? new Date().toISOString()
-                          : undefined,
-                      }
-                    : item,
-                ),
-              )
-            }
           />
         )}{" "}
         {activeTab === "profile" && (
@@ -4622,13 +3643,9 @@ function ControlCenterApp() {
         )}{" "}
         {activeTab === "newsletters" && (
           <NewslettersView
-            addReminder={addReminder}
             openSettings={() => openSettings("newsletters")}
             openAiSettings={() => openSettings("ai")}
           />
-        )}{" "}
-        {activeTab === "tasks" && (
-          <TasksView tasks={tasks} setTasks={setTasks} />
         )}{" "}
         {activeTab === "settings" && (
           <SettingsView
