@@ -27,11 +27,14 @@ You can host AxomRank completely free on [Render.com](https://render.com) with 1
 
 - **Assam Recruitment Feeds**: Preconfigured with official RSS and notification sources (APSC, SLPRB Assam Police, Gauhati High Court, DEE/TET, Assam Tribune, JobAssam, AssamCareer, and more).
 - **Incident & Noise Hard-Filtering**: Intelligent heuristic filtering that suppresses tragedy and crime incidents (e.g. suicides, murders, road accidents) while strictly retaining genuine vacancy recruitments, exam notices, and admit cards.
-- **Candidate Profile & Deal-Breaker Gates**: Configure your education level (Graduate, 10th, 12th, B.Tech, ITI, TET, Nursing, LLB), social reservation quota (UR, OBC/MOBC, SC, ST, EWS), home district (all 34 Assam districts), and Employment Exchange registration. Deal-breaker requirements (e.g. nursing licenses or bar admissions) are automatically detected and flagged.
-- **0–100% Fit Scoring & Badges**: Every vacancy displays a real-time fit score (🟢 High Match 80%+, 🟡 Good Fit 60%+, ⚠️ Qualification Gap) based on your personalized profile.
-- **Government Application Funnel**: Replaced static bookmarks with a full application tracker:
+- **Google Sign-In (Firebase Auth)**: Aspirants and students can log in securely with their Google account to access their persistent academic profile and document vault across devices.
+- **Student Profile & Deal-Breaker Gates**: Configure your educational credentials (degrees, streams, board/university, percentage/CGPA), social reservation quotas (UR, OBC/MOBC, SC, ST, EWS), home district (all 34 Assam districts), and Employment Exchange registration number & renewal date. Deal-breaker requirements (e.g. nursing council registration or bar admissions) are automatically evaluated and flagged.
+- **Secure Document Vault**: Upload and store your Permanent Resident Certificate (PRC), Employment Exchange Card, Caste Certificate, 10th/12th marksheets, and degree certificates with 1-click access during government application form fill-ups.
+- **Web Push Notifications (FCM)**: Receive instant browser notifications when new Assam government vacancies, admit cards, or exam dates matching $\ge 80\%$ of your profile eligibility are posted.
+- **0–100% Fit Scoring & Badges**: Every vacancy displays a real-time fit score (🟢 High Match 80%+, 🟡 Good Fit 60%+, ⚠️ Qualification Gap) customized to your profile.
+- **Government Application Funnel**: Track your journey from notice to appointment:
   `📌 Saved ➔ 📝 Applied ➔ 🎫 Admit Card Ready ➔ ✍️ Exam Attended ➔ 🏆 Result / Selected`
-  Store Application Numbers, Roll Numbers, and Exam Dates with full SQLite persistence.
+  Store Application Numbers, Roll Numbers, and Exam Dates with full persistence.
 
 ---
 

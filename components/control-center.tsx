@@ -46,7 +46,15 @@ import {
   Users,
   X,
   Youtube,
+  LogIn,
+  LogOut,
+  User,
+  Lock,
+  UserCheck,
 } from "lucide-react";
+import { AuthProvider, useAuth } from "@/lib/firebase/auth-context";
+import { AspirantProfileBuilder } from "@/components/aspirant-profile-builder";
+import { DocumentVault } from "@/components/document-vault";
 import type {
   AudienceMetric,
   AudiencePlatform,
@@ -82,7 +90,6 @@ import { sortFeedStories, selectNewsletterTopics, newsletterSourceOptions } from
 import { sortIndustryItems, type IndustrySortOrder } from "@/lib/industry";
 import {
   ASSAM_DISTRICTS,
-  type CandidateProfile,
   DEFAULT_CANDIDATE_PROFILE,
   extractJobMetadata,
 } from "@/lib/assam-job-classifier";
@@ -96,6 +103,8 @@ type Tab =
   | "today"
   | "industry"
   | "mentions"
+  | "profile"
+  | "vault"
   | "reminders"
   | "audience"
   | "newsletters"
@@ -154,10 +163,11 @@ const nav: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "today", label: "Daily Radar", icon: LayoutDashboard },
   { id: "industry", label: "Job Feeds", icon: Radio },
   { id: "mentions", label: "Exam Radar", icon: AtSign },
-  { id: "reminders", label: "Deadlines", icon: Bookmark },
-  { id: "tasks", label: "Applications", icon: ListTodo },
+  { id: "profile", label: "My Profile", icon: UserCheck },
+  { id: "vault", label: "Document Vault", icon: Lock },
+  { id: "reminders", label: "Applications", icon: Bookmark },
+  { id: "tasks", label: "To-Do / Study", icon: ListTodo },
   { id: "newsletters", label: "Digests", icon: Newspaper },
-  { id: "audience", label: "Audience", icon: Users },
 ];
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -3967,7 +3977,91 @@ function SettingsView({
   );
 }
 
-export function ControlCenter() {
+function AuthUserHeaderWidget({ onOpenProfile }: { onOpenProfile: () => void }) {
+  const { user, loading, signInWithGoogle, signOut, isConfigured } = useAuth();
+
+  if (loading) {
+    return <span style={{ fontSize: "11px", color: "var(--text-muted)", padding: "0 6px" }}>...</span>;
+  }
+
+  if (user) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="button button-ghost"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "3px 8px",
+            borderRadius: "16px",
+            background: "var(--bg-subtle)",
+            border: "1px solid var(--border)",
+            fontSize: "12px",
+          }}
+          title={`Signed in as ${user.displayName || user.email}. Click to view academic profile.`}
+        >
+          {user.photoURL ? (
+            <img
+              src={user.photoURL}
+              alt=""
+              style={{ width: "18px", height: "18px", borderRadius: "50%" }}
+            />
+          ) : (
+            <User size={14} />
+          )}
+          <span style={{ maxWidth: "100px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {user.displayName?.split(" ")[0] || "Aspirant"}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => signOut()}
+          className="icon-button"
+          title="Sign out"
+          style={{ padding: "4px" }}
+        >
+          <LogOut size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="button button-primary"
+      style={{
+        fontSize: "11px",
+        padding: "4px 10px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        borderRadius: "14px",
+      }}
+      onClick={async () => {
+        try {
+          await signInWithGoogle();
+        } catch (e) {
+          if (!isConfigured) {
+            alert(
+              "Firebase is not configured yet. Add your NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_PROJECT_ID environment variables in .env.local or your deployment environment."
+            );
+          } else {
+            console.error(e);
+          }
+        }
+      }}
+    >
+      <LogIn size={13} /> Google Login
+    </button>
+  );
+}
+
+function ControlCenterApp() {
+  const { profile: aspirantProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("today");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [settings, setSettings] = useState<PublicSettings>(emptySettings);
@@ -3982,6 +4076,22 @@ export function ControlCenter() {
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
   const [workspaceSaveError, setWorkspaceSaveError] = useState("");
   const workspaceSaveQueue = useRef(Promise.resolve());
+
+  const effectiveSettings = useMemo<PublicSettings>(() => {
+    if (aspirantProfile && aspirantProfile.education) {
+      return {
+        ...settings,
+        candidateProfile: {
+          education: aspirantProfile.education,
+          category: aspirantProfile.category,
+          homeDistrict: aspirantProfile.homeDistrict,
+          hasEmploymentExchange: aspirantProfile.hasEmploymentExchange,
+          preferredDepartments: aspirantProfile.preferredDepartments,
+        },
+      };
+    }
+    return settings;
+  }, [settings, aspirantProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4290,6 +4400,7 @@ export function ControlCenter() {
           })}
         </nav>
         <div className="top-actions">
+          <AuthUserHeaderWidget onOpenProfile={() => goTo("profile")} />
           <button className="status-button" onClick={() => openSettings()}>
             <i className={configuredCount === 4 ? "ready" : ""} />
             <span>{configuredCount}/4 live</span>
@@ -4324,7 +4435,7 @@ export function ControlCenter() {
         )}
         {activeTab === "today" && (
           <TodayView
-            settings={settings}
+            settings={effectiveSettings}
             tasks={tasks}
             goTo={goTo}
             openSettings={openSettings}
@@ -4378,6 +4489,25 @@ export function ControlCenter() {
             }
           />
         )}{" "}
+        {activeTab === "profile" && (
+          <div className="view">
+            <Panel className="settings-panel">
+              <AspirantProfileBuilder
+                onSaved={() => {
+                  setToast("Profile saved to Cloud Firestore");
+                  clearLiveDataCache();
+                }}
+              />
+            </Panel>
+          </div>
+        )}{" "}
+        {activeTab === "vault" && (
+          <div className="view">
+            <Panel className="settings-panel">
+              <DocumentVault />
+            </Panel>
+          </div>
+        )}{" "}
         {activeTab === "audience" && (
           <AudienceView openSettings={() => openSettings("audience")} />
         )}{" "}
@@ -4405,7 +4535,7 @@ export function ControlCenter() {
         <span>{settings.general.workspaceName}</span>
         <i />
         <span>{current}</span>
-        <small>Local-only · Saved to this computer</small>
+        <small>Assam Aspirant Radar · Cloud Firestore & Web Push Enabled</small>
       </footer>
       {toast && (
         <div className="toast">
@@ -4414,5 +4544,13 @@ export function ControlCenter() {
         </div>
       )}
     </div>
+  );
+}
+
+export function ControlCenter() {
+  return (
+    <AuthProvider>
+      <ControlCenterApp />
+    </AuthProvider>
   );
 }

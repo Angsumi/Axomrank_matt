@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  evaluateJobFit,
   extractJobMetadata,
   type CandidateProfile,
-  DEFAULT_CANDIDATE_PROFILE,
 } from "../lib/assam-job-classifier";
 
 test("evaluates high fit for Graduate profile matching APSC Administrative post", () => {
