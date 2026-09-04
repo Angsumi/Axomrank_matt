@@ -894,7 +894,7 @@ function IndustryView({
 }) {
   const { data, loading, error, refresh, mutate } = useLiveData<LiveFeedResponse>(
     "/api/live/industry",
-    15 * 60 * 1000,
+    24 * 60 * 60 * 1000,
     "/api/live/industry?refresh=1",
   );
   const [query, setQuery] = useState("");

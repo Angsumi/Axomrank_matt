@@ -220,6 +220,24 @@ async function collectIndustry() {
   return Response.json({ configured: true, checkedAt, items: sortIndustryItems(saved.active, "important"), archivedItems, archiveCount: archivedItems.length, historyItems, historyCount: historyItems.length, errors, sourceStatuses, freshnessHours: INDUSTRY_FRESHNESS_HOURS, discoveredCount: rawItems.length, surfacedLimit: settings.industry.dailyLimit, curationMode, providerStatuses } satisfies LiveFeedResponse);
 }
 
+export async function executeIndustrySync(): Promise<{ success: boolean; payload: LiveFeedResponse; error?: string }> {
+  const settings = await readSettings();
+  const scope = industryCacheScope(settings);
+  const response = await collectIndustry();
+  if (response.ok) {
+    const payload = (await response.clone().json()) as LiveFeedResponse;
+    const saved = writeCollectorSnapshot(
+      getDatabase(),
+      "industry",
+      scope,
+      payload,
+      payload.checkedAt,
+    );
+    return { success: true, payload: saved };
+  }
+  return { success: false, payload: {} as LiveFeedResponse, error: "Failed to collect industry feed" };
+}
+
 export async function GET(request: Request) {
   const settings = await readSettings();
   const scope = industryCacheScope(settings);
