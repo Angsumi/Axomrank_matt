@@ -8,9 +8,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getFirebaseFirestore } from "./config";
-import type { CandidateProfile } from "../assam-job-classifier";
-import { DEFAULT_CANDIDATE_PROFILE } from "../assam-job-classifier";
-import type { ReminderItem } from "../types";
+import { DEFAULT_CANDIDATE_PROFILE, type CandidateProfile, type JobMetadata } from "../assam-job-classifier";
+import type { LiveStory, ReminderItem } from "../types";
 
 export type AspirantProfile = CandidateProfile & {
   fullName?: string;
@@ -183,5 +182,132 @@ export async function saveAspirantApplication(
   } catch (err) {
     console.error("Failed to save application to Firestore:", err);
     return false;
+  }
+}
+
+// -------------------------------------------------------------
+// Permanent Vacancies Cloud Storage
+// -------------------------------------------------------------
+
+export type PermanentVacancy = {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  discoveredAt: string;
+  importanceScore?: number;
+  importanceReason?: string;
+  jobMetadata?: JobMetadata;
+  syncedAt?: string;
+  isPermanent: boolean;
+};
+
+export function sanitizeVacancyDocId(item: { id?: string; url?: string; title?: string }): string {
+  const raw = item.id || item.url || item.title || "vacancy";
+  const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^_+|_+$/g, "").slice(0, 120);
+  return sanitized.length > 0 ? sanitized : `vac_${Date.now()}`;
+}
+
+export function liveStoryToPermanentVacancy(item: LiveStory): PermanentVacancy {
+  return {
+    id: item.id || sanitizeVacancyDocId(item),
+    title: item.title || "Untitled Recruitment Alert",
+    summary: item.summary || "",
+    url: item.url || "",
+    source: item.source || "Assam Career Updates",
+    publishedAt: item.publishedAt || new Date().toISOString(),
+    discoveredAt: item.discoveredAt || new Date().toISOString(),
+    importanceScore: item.importanceScore,
+    importanceReason: item.importanceReason,
+    jobMetadata: item.jobMetadata,
+    isPermanent: true,
+  };
+}
+
+export async function saveVacanciesToFirestore(
+  items: LiveStory[]
+): Promise<{ success: boolean; savedCount: number; errors: string[] }> {
+  const db = getFirebaseFirestore();
+  if (!db) {
+    return { success: false, savedCount: 0, errors: ["Firebase is not configured or initialized."] };
+  }
+
+  if (!items.length) {
+    return { success: true, savedCount: 0, errors: [] };
+  }
+
+  const errors: string[] = [];
+  let savedCount = 0;
+
+  // Process in batches of 25 for Firestore write safety
+  const batchSize = 25;
+  for (let i = 0; i < items.length; i += batchSize) {
+    const chunk = items.slice(i, i + batchSize);
+    try {
+      const promises = chunk.map(async (story) => {
+        const docId = sanitizeVacancyDocId(story);
+        const record = liveStoryToPermanentVacancy(story);
+        const vacancyRef = doc(db, "vacancies", docId);
+        await setDoc(
+          vacancyRef,
+          {
+            ...record,
+            syncedAt: new Date().toISOString(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        savedCount += 1;
+      });
+      await Promise.all(promises);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to write batch to Firestore";
+      errors.push(message);
+    }
+  }
+
+  return {
+    success: errors.length === 0,
+    savedCount,
+    errors,
+  };
+}
+
+export async function getPermanentVacanciesFromFirestore(
+  limitCount = 100
+): Promise<LiveStory[]> {
+  const db = getFirebaseFirestore();
+  if (!db) return [];
+  try {
+    const vacanciesRef = collection(db, "vacancies");
+    const snapshot = await getDocs(vacanciesRef);
+    const docs = snapshot.docs.map((d) => {
+      const data = d.data() as PermanentVacancy;
+      return {
+        id: data.id || d.id,
+        title: data.title,
+        summary: data.summary,
+        url: data.url,
+        source: data.source,
+        publishedAt: data.publishedAt,
+        discoveredAt: data.discoveredAt,
+        importanceScore: data.importanceScore,
+        jobMetadata: data.jobMetadata ? (data.jobMetadata as unknown as LiveStory["jobMetadata"]) : undefined,
+      };
+    });
+
+    // Sort descending by publishedAt / discoveredAt
+    docs.sort((a, b) => {
+      const timeA = Date.parse(a.publishedAt || a.discoveredAt || "0");
+      const timeB = Date.parse(b.publishedAt || b.discoveredAt || "0");
+      return timeB - timeA;
+    });
+
+    return docs.slice(0, limitCount);
+  } catch (err) {
+    console.error("Failed to load permanent vacancies from Firestore:", err);
+    return [];
   }
 }

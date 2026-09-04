@@ -51,8 +51,14 @@ import {
   User,
   Lock,
   UserCheck,
+  Cloud,
+  UploadCloud,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/firebase/auth-context";
+import {
+  saveVacanciesToFirestore,
+  getPermanentVacanciesFromFirestore,
+} from "@/lib/firebase/firestore-service";
 import { AspirantProfileBuilder } from "@/components/aspirant-profile-builder";
 import { DocumentVault } from "@/components/document-vault";
 import type {
@@ -892,11 +898,16 @@ function IndustryView({
     "/api/live/industry?refresh=1",
   );
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"all" | "today" | "yesterday" | "archive">("all");
+  const [view, setView] = useState<"all" | "today" | "yesterday" | "archive" | "cloud">("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedQualification, setSelectedQualification] = useState<string>("all");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<IndustrySortOrder>("important");
+  const [cloudVacancies, setCloudVacancies] = useState<LiveStory[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+  const hasAutoSyncedRef = useRef(false);
   const archive = useArchiveAction<LiveFeedResponse>("industry", mutate);
 
   const referenceTimestamp = Date.parse(data?.checkedAt || "1970-01-01T00:00:00.000Z") || 0;
@@ -912,21 +923,61 @@ function IndustryView({
     return diff > 24 * 60 * 60 * 1000 && diff <= 48 * 60 * 60 * 1000;
   };
 
-  const allActiveAndHistory = [
+  const allActiveAndHistory = useMemo(() => [
     ...(data?.items || []),
     ...(data?.historyItems || []).filter(
       (h) => !(data?.items || []).some((i) => i.id === h.id || (i.url && i.url === h.url))
     ),
-  ];
+  ], [data?.items, data?.historyItems]);
+
+  // Auto-sync discovered vacancies to Firebase Firestore in the background once per load
+  useEffect(() => {
+    if (allActiveAndHistory.length > 0 && !hasAutoSyncedRef.current) {
+      hasAutoSyncedRef.current = true;
+      saveVacanciesToFirestore(allActiveAndHistory).catch(() => {});
+    }
+  }, [allActiveAndHistory]);
+
+  const loadCloudArchive = async () => {
+    setCloudLoading(true);
+    try {
+      const docs = await getPermanentVacanciesFromFirestore(250);
+      setCloudVacancies(docs);
+    } catch (err) {
+      console.error("Error loading cloud archive:", err);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleManualCloudSync = async () => {
+    setSyncingCloud(true);
+    setSyncStatusMsg(null);
+    try {
+      const res = await saveVacanciesToFirestore(allActiveAndHistory);
+      if (res.success) {
+        setSyncStatusMsg(`✅ Permanently backed up ${res.savedCount} vacancies to Firebase!`);
+      } else {
+        setSyncStatusMsg(`⚠️ ${res.errors[0] || "Sync incomplete"}`);
+      }
+    } catch {
+      setSyncStatusMsg("⚠️ Could not reach Firebase.");
+    } finally {
+      setSyncingCloud(false);
+      setTimeout(() => setSyncStatusMsg(null), 5000);
+    }
+  };
 
   const sourceItems =
     view === "archive"
       ? data?.archivedItems || []
-      : view === "today"
-        ? allActiveAndHistory.filter((item) => isWithin24h(item.publishedAt))
-        : view === "yesterday"
-          ? allActiveAndHistory.filter((item) => isYesterday(item.publishedAt))
-          : allActiveAndHistory;
+      : view === "cloud"
+        ? cloudVacancies
+        : view === "today"
+          ? allActiveAndHistory.filter((item) => isWithin24h(item.publishedAt))
+          : view === "yesterday"
+            ? allActiveAndHistory.filter((item) => isYesterday(item.publishedAt))
+            : allActiveAndHistory;
 
   const todayCount = allActiveAndHistory.filter((item) => isWithin24h(item.publishedAt)).length;
   const yesterdayCount = allActiveAndHistory.filter((item) => isYesterday(item.publishedAt)).length;
@@ -1019,15 +1070,31 @@ function IndustryView({
         title="Job Feeds"
         description="Live recruitment notifications, admit cards, exam schedules, and results from JobAssam, AssamCareer, APSC, and Govt departments."
         action={
-          <button
-            className="button button-primary"
-            onClick={refresh}
-            disabled={loading}
-          >
-            <RefreshCw size={15} /> Refresh jobs
-          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              className="button button-secondary"
+              onClick={handleManualCloudSync}
+              disabled={syncingCloud || allActiveAndHistory.length === 0}
+              title="Backup all recruitment records permanently to Firebase Cloud Firestore"
+            >
+              <UploadCloud size={15} className={syncingCloud ? "spinning" : ""} />
+              {syncingCloud ? "Syncing..." : "☁️ Backup to Firebase"}
+            </button>
+            <button
+              className="button button-primary"
+              onClick={refresh}
+              disabled={loading}
+            >
+              <RefreshCw size={15} /> Refresh jobs
+            </button>
+          </div>
         }
       />
+      {syncStatusMsg && (
+        <div style={{ padding: "8px 14px", borderRadius: "6px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#38bdf8", fontSize: "0.85rem", marginBottom: "12px" }}>
+          {syncStatusMsg}
+        </div>
+      )}
       {loading && !data ? (
         <LoadingPanel />
       ) : !data && error ? (
@@ -1066,6 +1133,15 @@ function IndustryView({
                 onClick={() => setView("archive")}
               >
                 📌 Saved ({data.archiveCount || 0})
+              </button>
+              <button
+                className={view === "cloud" ? "active" : ""}
+                onClick={() => {
+                  setView("cloud");
+                  if (cloudVacancies.length === 0) loadCloudArchive();
+                }}
+              >
+                ☁️ Cloud Archive {cloudLoading ? "(loading...)" : cloudVacancies.length > 0 ? `(${cloudVacancies.length})` : ""}
               </button>
             </div>
             <div className="toolbar-actions">

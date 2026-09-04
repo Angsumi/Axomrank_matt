@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profile and private documents
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      match /{allChildren=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Public recruitment vacancies and exam results (Permanent Cloud Archive)
+    match /vacancies/{vacancyId} {
+      // Anyone can read vacancies
+      allow read: if true;
+      // Authenticated users or admin services can save/update vacancies
+      allow write: if request.auth != null;
+    }
+    
+    // Fallback default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
